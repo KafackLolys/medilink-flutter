@@ -40,9 +40,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     PushNotificationService.instance.addListener(_onPushUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshUnreadCount());
-      final conversationId =
-          PushNotificationService.instance.takePendingConversationId();
-      if (conversationId != null) _openConversation(conversationId);
+      final notification =
+          PushNotificationService.instance.takePendingNotificationData();
+      if (notification != null) _openNotification(notification);
     });
   }
 
@@ -66,6 +66,41 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   String? _openingConversationId;
+
+  Future<void> _openNotification(Map<String, dynamic> data) async {
+    final type = data['type']?.toString();
+    final targetUrl = (data['targetUrl'] ?? data['url'])?.toString() ?? '';
+    final uri = Uri.tryParse(targetUrl);
+    final conversationId = data['conversationId']?.toString() ??
+        uri?.queryParameters['conversation'];
+
+    if (type == 'new_message' && conversationId != null &&
+        conversationId.isNotEmpty) {
+      await _openConversation(conversationId);
+      return;
+    }
+
+    if (!mounted) return;
+    switch (type) {
+      case 'appointment_updated':
+        setState(() => selected = 4);
+        break;
+      case 'proposal_received':
+        setState(() => selected = widget.auth.role == 'doctor' ? 2 : 1);
+        break;
+      case 'proposal_accepted':
+        setState(() => selected = widget.auth.role == 'doctor' ? 2 : 4);
+        break;
+      case 'relevant_need':
+        setState(() => selected = widget.auth.role == 'doctor' ? 1 : 2);
+        break;
+      default:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        );
+    }
+  }
 
   Future<void> _openConversation(String conversationId) async {
     if (!mounted || _openingConversationId == conversationId) return;
@@ -116,11 +151,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() {});
     unawaited(_refreshUnreadCount());
-    final conversationId =
-        PushNotificationService.instance.takePendingConversationId();
-    if (conversationId != null) {
+    final notification =
+        PushNotificationService.instance.takePendingNotificationData();
+    if (notification != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openConversation(conversationId);
+        _openNotification(notification);
       });
     }
     final latest = PushNotificationService.instance.latestForegroundMessage;
