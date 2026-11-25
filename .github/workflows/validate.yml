@@ -34,8 +34,8 @@ jobs:
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses --channel=3 >/dev/null || true
           PACKAGE_LIST="$("$SDKMANAGER" --list --channel=3)"
-          PLATFORM="$(printf '%s\\n' "$PACKAGE_LIST" | grep -oE 'platforms;android-37(\\.0)?' | head -n 1)"
-          BUILD_TOOLS="$(printf '%s\\n' "$PACKAGE_LIST" | grep -oE 'build-tools;37\\.[0-9]+\\.[0-9]+' | sort -V | tail -n 1)"
+          PLATFORM="$(printf '%s\n' "$PACKAGE_LIST" | grep -oE 'platforms;android-37(\.0)?' | head -n 1)"
+          BUILD_TOOLS="$(printf '%s\n' "$PACKAGE_LIST" | grep -oE 'build-tools;37\.[0-9]+\.[0-9]+' | sort -V | tail -n 1)"
           if [ -z "$PLATFORM" ] || [ -z "$BUILD_TOOLS" ]; then
             echo "Android 17 SDK preview packages were not found in the Canary channel."
             exit 1
