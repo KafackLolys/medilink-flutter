@@ -481,7 +481,7 @@ class PushNotificationService extends ChangeNotifier {
       error = null;
     } catch (exception) {
       registeredWithBackend = false;
-      error = 'Enregistrement du token FCM impossible : $exception';
+      error = 'Enregistrement du token FCM auprès de Novu impossible : $exception';
     }
     notifyListeners();
   }
