@@ -71,6 +71,29 @@ int _stableNotificationId(String value) {
   return hash == 0 ? 1 : hash;
 }
 
+String _notificationIconForType(dynamic rawType) {
+  final type = (rawType?.toString() ?? '').toLowerCase().replaceAll('-', '_');
+  if (type.contains('message') || type.contains('chat')) {
+    return 'ic_stat_message';
+  }
+  if (type.contains('proposal') || type.contains('offer')) {
+    return 'ic_stat_proposal';
+  }
+  if (type.contains('appointment') || type.contains('rendez_vous') || type.contains('rendezvous')) {
+    if (type.contains('cancel') || type.contains('reject')) {
+      return 'ic_stat_appointment_cancelled';
+    }
+    return 'ic_stat_appointment';
+  }
+  if (type.contains('need') || type.contains('besoin')) {
+    return 'ic_stat_need';
+  }
+  if (type.contains('reminder') || type.contains('rappel')) {
+    return 'ic_stat_reminder';
+  }
+  return 'ic_stat_medilink';
+}
+
 Future<void> _showRemoteNotification(
   RemoteMessage message,
   FlutterLocalNotificationsPlugin plugin,
@@ -81,6 +104,7 @@ Future<void> _showRemoteNotification(
       'Notification MedLink';
   final body = message.notification?.body ?? data['body']?.toString() ?? '';
   final conversationId = data['conversationId']?.toString();
+  final notificationIcon = _notificationIconForType(data['type']);
   final isChat = data['type']?.toString() == 'new_message' &&
       conversationId != null &&
       conversationId.isNotEmpty;
@@ -135,7 +159,7 @@ Future<void> _showRemoteNotification(
         channelDescription: _notificationChannel.description,
         importance: Importance.high,
         priority: Priority.high,
-        icon: 'ic_stat_medilink',
+        icon: notificationIcon,
         category: isChat ? AndroidNotificationCategory.message : null,
         visibility: NotificationVisibility.private,
         onlyAlertOnce: true,
