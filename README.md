@@ -6,7 +6,7 @@ L'intégration API s'inspire de `medilink-mobile` (React Native) : même découp
 
 ## Prérequis
 
-- Flutter stable / Dart 3.4+
+- Flutter stable 3.44+ (the local-notifications plugin requires this baseline)
 
 ## Lancement
 
@@ -31,3 +31,23 @@ Sans API configurée ou joignable, la connexion, l’inscription et les actions 
 - `lib/core/data/live_state.dart` caches de session alimentés par les réponses API.
 - `lib/core/theme/` et `lib/core/widgets/` thème et composants partagés.
 - `lib/features/` écrans par domaine : authentification, accueil, annuaire des médecins, besoins et propositions, messagerie, notifications et rendez-vous.
+
+## Notifications Android et messagerie
+
+Les notifications de nouveaux messages utilisent un payload FCM data-only sur Android afin que MediLink puisse afficher une notification locale avec les actions natives :
+
+- **Répondre** : envoie le texte saisi depuis la notification vers `POST /messages/v2/conversations/:id`.
+- **Marquer comme lu** : met à jour les messages reçus via `PATCH /messages/v2/conversations/:id/read` et la notification associée.
+- **Ouvrir** : ouvre directement la conversation dans l'application.
+- Le style Android étendu affiche le contenu du message ; l'aperçu est masqué sur l'écran verrouillé lorsque le système respecte la visibilité privée.
+
+Le token FCM de l'appareil est enregistré sur `POST /notifications/v2/devices` après authentification et supprimé à la déconnexion. Aucune clé secrète Novu ne doit être embarquée dans l'application mobile : les déclenchements Novu doivent rester côté serveur.
+
+Pour tester sur un appareil Android réel :
+1. Connectez-vous avec un compte patient ou médecin et autorisez les notifications.
+2. Envoyez un message depuis l'autre compte.
+3. Testez la notification en premier plan, en arrière-plan puis après fermeture de l'application.
+4. Vérifiez les actions Répondre et Marquer comme lu, puis ouvrez la conversation.
+5. Contrôlez que la réponse apparaît dans la messagerie et que le compteur de messages non lus diminue.
+
+Les actions rapides nécessitent une nouvelle compilation Android (elles reposent sur le manifeste et les composants natifs).
