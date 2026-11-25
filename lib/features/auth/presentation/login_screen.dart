@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
-import '../../../core/data/demo_data.dart';
+import '../../../core/data/live_state.dart';
 
-import '../application/demo_session_controller.dart';
+import '../application/auth_controller.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.auth});
-  final DemoSessionController auth;
+  final AuthController auth;
   @override
   State<LoginScreen> createState() => _LoginState();
 }
@@ -45,18 +45,65 @@ class _LoginState extends State<LoginScreen> {
       await widget.auth.register(data);
       if (mounted && widget.auth.error == null) {
         setState(() => registering = false);
-        final message = widget.auth.usesApi
-            ? 'Compte créé. Confirmez votre e-mail avant de vous connecter.'
-            : 'Compte créé. Connectez-vous.';
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+            .showSnackBar(const SnackBar(
+                content: Text(
+                    'Compte créé. Confirmez votre e-mail avant de vous connecter.')));
       }
     } else {
-      await widget.auth.login(email.text, password.text);
+      final emailValue = email.text.trim();
+      final passwordValue = password.text;
+      if (emailValue.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saisissez votre e-mail.')),
+        );
+        return;
+      }
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailValue)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('E-mail invalide.')),
+        );
+        return;
+      }
+      if (passwordValue.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saisissez votre mot de passe.')),
+        );
+        return;
+      }
+      await widget.auth.login(emailValue, passwordValue);
     }
     if (mounted && widget.auth.error != null)
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(widget.auth.error!)));
+  }
+
+  Future<void> _signInWithGoogle() async {
+    await widget.auth.signInWithGoogle(role);
+    if (mounted && widget.auth.error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(widget.auth.error!)));
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final emailValue = email.text.trim();
+    if (emailValue.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saisissez votre e-mail.')),
+      );
+      return;
+    }
+    await widget.auth.resetPassword(emailValue);
+    if (mounted && widget.auth.error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(widget.auth.error!)));
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Si ce compte existe, un e-mail a été envoyé.')),
+      );
+    }
   }
 
   @override
@@ -81,15 +128,10 @@ class _LoginState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 76,
-                      height: 76,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        LucideIcons.heartPulse,
-                        size: 34,
-                        color: const Colors(0xff29b6a6),
-                      ),
+                    Icon(
+                      Icons.favorite,
+                      size: 34,
+                      color: Color(0xff1769aa),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -115,8 +157,10 @@ class _LoginState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Mode démonstration · données locales uniquement',
+                    Text(
+                      widget.auth.usesApi
+                          ? 'Connectez-vous avec votre compte MedLink'
+                          : 'Connexion indisponible · configurez API_BASE_URL',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Color(0xff66788a), fontSize: 12),
                     ),
@@ -163,10 +207,11 @@ class _LoginState extends State<LoginScreen> {
                           value: selectedSpecialty,
                           decoration: const InputDecoration(
                             labelText: 'Spécialité',
-                            prefixIcon: Icon(LucideIcons.stethoscope),
+                            prefixIcon:
+                                Icon(LineAwesomeIcons.stethoscope_solid),
                           ),
                           hint: const Text('Sélectionner une spécialité'),
-                          items: DemoData.specialties
+                          items: LiveState.specialties
                               .map(
                                 (specialty) => DropdownMenuItem<String>(
                                   value: specialty,
@@ -193,7 +238,7 @@ class _LoginState extends State<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
                         labelText: 'Adresse e-mail',
-                        prefixIcon: Icon(LucideIcons.mail),
+                        prefixIcon: Icon(LineAwesomeIcons.envelope_solid),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -202,7 +247,14 @@ class _LoginState extends State<LoginScreen> {
                       obscureText: true,
                       decoration: const InputDecoration(
                         labelText: 'Mot de passe',
-                        prefixIcon: Icon(LucideIcons.lockKeyhole),
+                        prefixIcon: Icon(LineAwesomeIcons.lock_solid),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: widget.auth.busy ? null : _resetPassword,
+                        child: const Text('Mot de passe oublié ?'),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -228,6 +280,47 @@ class _LoginState extends State<LoginScreen> {
                             : 'Créer un compte',
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: Colors.grey.shade300,
+                            thickness: 1,
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'ou',
+                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: Colors.grey.shade300,
+                            thickness: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed:
+                          widget.auth.busy ? null : () => _signInWithGoogle(),
+                      icon: const _GoogleLogoIcon(),
+                      label: const Text(
+                        'Continuer avec Google',
+                        style: TextStyle(
+                          color: Color(0xff4285f4),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Color(0xff4285f4)),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -235,4 +328,31 @@ class _LoginState extends State<LoginScreen> {
           ),
         ),
       );
+}
+
+/// Icône Google locale (sans dépendance réseau) pour le bouton d'authentification.
+class _GoogleLogoIcon extends StatelessWidget {
+  const _GoogleLogoIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: const BoxDecoration(
+        color: Color(0xff4285f4),
+        borderRadius: BorderRadius.all(Radius.circular(4)),
+      ),
+      child: const Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
 }

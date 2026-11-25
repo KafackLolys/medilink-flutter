@@ -1,43 +1,57 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
-import '../../auth/application/demo_session_controller.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../appointments/presentation/appointments_screen.dart';
 import '../../doctors/presentation/doctors_screen.dart';
 import '../../needs/presentation/needs_screen.dart';
 import '../../messaging/presentation/messages_screen.dart';
 import '../../notifications/presentation/notifications_screen.dart';
+import 'patient_profile_screen.dart';
 import '../../doctor/presentation/proposals_screen.dart';
+import '../../doctor/presentation/doctor_workspace_screen.dart';
 import 'dashboard_screen.dart';
+import 'admin_accounts_screen.dart';
+import 'admin_profile_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.auth});
-  final DemoSessionController auth;
+  final AuthController auth;
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
   int selected = 0;
+  int appointmentRefresh = 0;
+  int needsRefresh = 0, proposalsRefresh = 0, messagesRefresh = 0;
   @override
   Widget build(BuildContext context) {
+    if (widget.auth.role == 'admin') return _adminShell();
     final doctor = widget.auth.role == 'doctor';
     final pages = <Widget>[
       DashboardScreen(auth: widget.auth),
-      doctor ? NeedsScreen(doctor: true) : const DoctorsScreen(),
-      doctor ? const ProposalsScreen() : NeedsScreen(doctor: false),
-      MessagesScreen(doctor: doctor),
-      AppointmentsScreen(doctor: doctor),
+      doctor
+          ? NeedsScreen(
+              key: ValueKey('doctor-needs-$needsRefresh'), doctor: true)
+          : DoctorsScreen(onAppointmentCreated: _showAppointments),
+      doctor
+          ? ProposalsScreen(key: ValueKey('doctor-proposals-$proposalsRefresh'))
+          : NeedsScreen(
+              key: ValueKey('patient-needs-$needsRefresh'), doctor: false),
+      MessagesScreen(
+          key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
+      AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
     final icons = const [
-      LucideIcons.house,
-      LucideIcons.stethoscope,
-      LucideIcons.clipboardList,
-      LucideIcons.messageCircle,
-      LucideIcons.calendarDays,
+      LineAwesomeIcons.home_solid,
+      LineAwesomeIcons.stethoscope_solid,
+      LineAwesomeIcons.clipboard_list_solid,
+      LineAwesomeIcons.comment_dots_solid,
+      LineAwesomeIcons.calendar_alt_solid,
     ];
     return Scaffold(
       appBar: AppBar(
@@ -50,7 +64,7 @@ class _HomeShellState extends State<HomeShell> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                LucideIcons.heartPulse,
+                Icons.favorite,
                 color: Color(0xff1769aa),
                 size: 20,
               ),
@@ -63,6 +77,29 @@ class _HomeShellState extends State<HomeShell> {
           ],
         ),
         actions: [
+          if (!doctor)
+            IconButton(
+              tooltip: 'Profil et dossier médical',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PatientProfileScreen(
+                    user:
+                        Map<String, dynamic>.from(widget.auth.user ?? const {}),
+                  ),
+                ),
+              ),
+              icon: const Icon(LineAwesomeIcons.user_circle_solid),
+            ),
+          if (doctor)
+            IconButton(
+              tooltip: 'Profil et disponibilités',
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const DoctorWorkspaceScreen())),
+              icon: const Icon(LineAwesomeIcons.user_md_solid),
+            ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
@@ -75,20 +112,27 @@ class _HomeShellState extends State<HomeShell> {
             icon: Badge(
               label: Text('${NotificationsScreen.unreadCount}'),
               isLabelVisible: NotificationsScreen.unreadCount > 0,
-              child: const Icon(LucideIcons.bell),
+              child: const Icon(LineAwesomeIcons.bell_solid),
             ),
           ),
           IconButton(
             tooltip: 'Déconnexion',
             onPressed: () => widget.auth.signOut(),
-            icon: const Icon(LucideIcons.logOut),
+            icon: const Icon(LineAwesomeIcons.sign_out_alt_solid),
           ),
         ],
       ),
       body: IndexedStack(index: selected, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
-        onDestinationSelected: (v) => setState(() => selected = v),
+        onDestinationSelected: (v) => setState(() {
+          selected = v;
+          if (v == 1 && doctor) needsRefresh++;
+          if (v == 2 && doctor) proposalsRefresh++;
+          if (v == 2 && !doctor) needsRefresh++;
+          if (v == 3) messagesRefresh++;
+          if (v == 4) appointmentRefresh++;
+        }),
         destinations: List.generate(
           5,
           (i) => NavigationDestination(icon: Icon(icons[i]), label: labels[i]),
@@ -98,10 +142,57 @@ class _HomeShellState extends State<HomeShell> {
           ? FloatingActionButton.extended(
               onPressed: () =>
                   createNeed(context, onCreated: () => setState(() {})),
-              icon: const Icon(LucideIcons.plus),
+              icon: const Icon(LineAwesomeIcons.plus_solid),
               label: const Text('Nouveau besoin'),
             )
           : null,
     );
+  }
+
+  Widget _adminShell() => Scaffold(
+        appBar: AppBar(
+          title: const Text('MedLink · Administration',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          actions: [
+            IconButton(
+                tooltip: 'Notifications',
+                onPressed: () async {
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen()));
+                  if (mounted) setState(() {});
+                },
+                icon: Badge(
+                    label: Text('${NotificationsScreen.unreadCount}'),
+                    isLabelVisible: NotificationsScreen.unreadCount > 0,
+                    child: const Icon(LineAwesomeIcons.bell_solid))),
+            IconButton(
+                tooltip: 'Déconnexion',
+                onPressed: widget.auth.signOut,
+                icon: const Icon(LineAwesomeIcons.sign_out_alt_solid)),
+          ],
+        ),
+        body: IndexedStack(index: selected.clamp(0, 1), children: [
+          AdminAccountsScreen(auth: widget.auth),
+          AdminProfileScreen(auth: widget.auth)
+        ]),
+        bottomNavigationBar: NavigationBar(
+            selectedIndex: selected.clamp(0, 1),
+            onDestinationSelected: (v) => setState(() => selected = v),
+            destinations: const [
+              NavigationDestination(
+                  icon: Icon(Icons.manage_accounts_outlined), label: 'Comptes'),
+              NavigationDestination(
+                  icon: Icon(Icons.person_outline), label: 'Mon profil')
+            ]),
+      );
+
+  void _showAppointments() {
+    if (!mounted) return;
+    setState(() {
+      selected = 4;
+      appointmentRefresh++;
+    });
   }
 }

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/api/medilink_api.dart';
-import '../../../core/data/demo_data.dart';
+import '../../../core/data/live_state.dart';
 import '../../../core/theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   static int get unreadCount =>
-      DemoData.notifications.where((row) => row['isRead'] != true).length;
+      LiveState.notifications.where((row) => row['isRead'] != true).length;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -17,45 +17,64 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool loading = false;
+  int page = 1, totalPages = 1;
   String? apiError;
 
   @override
   void initState() {
     super.initState();
-    if (MedilinkApi.instance.isConfigured) _load();
+    if (MedilinkApi.instance.isConfigured) {
+      LiveState.notifications.clear();
+      _load();
+    }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool append = false}) async {
     setState(() => loading = true);
     try {
-      final response = await MedilinkApi.instance.get(
-        'notifications/v2',
-        query: const {'page': '1', 'pageSize': '20'},
-      );
-      final raw = response is Map ? response['items'] : null;
-      final rows = raw is List ? raw.whereType<Map>().map((row) {
-        final item = Map<String, dynamic>.from(row);
-        return {...item, 'isRead': item['readAt'] != null};
-      }).toList() : <Map<String, dynamic>>[];
-      DemoData.notifications
-        ..clear()
-        ..addAll(rows);
+      final response = await MedilinkApi.instance
+          .notificationsList(page: page, pageSize: 20);
+      final raw = response['items'];
+      totalPages = (response['totalPages'] as num?)?.toInt() ?? 1;
+      final rows = raw is List
+          ? raw.whereType<Map>().map((row) {
+              final item = Map<String, dynamic>.from(row);
+              return {...item, 'isRead': item['readAt'] != null};
+            }).toList()
+          : <Map<String, dynamic>>[];
+      if (append) {
+        final ids = LiveState.notifications.map((v) => v['id']).toSet();
+        LiveState.notifications
+            .addAll(rows.where((v) => !ids.contains(v['id'])));
+      } else {
+        LiveState.notifications
+          ..clear()
+          ..addAll(rows);
+      }
       apiError = null;
     } catch (exception) {
       apiError = exception.toString();
+      if (append && page > 1) page--;
+      if (MedilinkApi.instance.isConfigured) LiveState.notifications.clear();
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
+  Future<void> _refresh() {
+    page = 1;
+    return _load();
+  }
+
   Future<void> markAllRead() async {
     try {
-      if (MedilinkApi.instance.isConfigured) {
-        await MedilinkApi.instance.patch('notifications/v2/read-all');
-      }
-      if (mounted) setState(() {
-        for (final row in DemoData.notifications) { row['isRead'] = true; }
-      });
+      await MedilinkApi.instance.notificationsReadAll();
+      if (mounted)
+        setState(() {
+          for (final row in LiveState.notifications) {
+            row['isRead'] = true;
+          }
+        });
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Mise à jour impossible : $exception')),
@@ -66,11 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _markRead(Map<String, dynamic> row) async {
     if (row['isRead'] == true) return;
     try {
-      if (MedilinkApi.instance.isConfigured) {
-        await MedilinkApi.instance.patch(
-          'notifications/v2/${Uri.encodeComponent(row['id'].toString())}/read',
-        );
-      }
+      await MedilinkApi.instance.notificationRead(row['id'].toString());
       if (mounted) setState(() => row['isRead'] = true);
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -82,6 +97,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Notifications'), actions: [
+          IconButton(
+              tooltip: 'Actualiser',
+              onPressed: loading ? null : _refresh,
+              icon: const Icon(Icons.refresh)),
           TextButton(
               onPressed:
                   NotificationsScreen.unreadCount == 0 ? null : markAllRead,
@@ -92,16 +111,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             children: [
               if (loading) const LinearProgressIndicator(),
               if (apiError != null)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 10),
-                  child: Text('API indisponible · notifications template affichées.'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text('Chargement impossible : $apiError'),
                 ),
-              if (DemoData.notifications.isEmpty)
+              if (LiveState.notifications.isEmpty)
                 const Padding(
                     padding: EdgeInsets.all(48),
-                    child: Center(child: Text('Aucune notification.')))
+                    child:
+                        Center(child: Text('Aucune notification à afficher.')))
               else
-                ...DemoData.notifications.map((row) {
+                ...LiveState.notifications.map((row) {
                   final unread = row['isRead'] != true;
                   return Card(
                       color: unread ? const Color(0xffeff7fd) : Colors.white,
@@ -122,16 +142,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 '${row['body']}\n${_date(row['createdAt']?.toString())}')),
                         isThreeLine: true,
                         trailing: unread
-                            ? const Icon(Icons.circle,
+                            ? const Icon(LineAwesomeIcons.circle_solid,
                                 size: 9, color: AppTheme.primary)
                             : null,
                         onTap: () => _markRead(row),
                       ));
                 }),
-              const Padding(
-                  padding: EdgeInsets.only(top: 8),
+              if (MedilinkApi.instance.isConfigured && page < totalPages)
+                Center(
+                    child: TextButton(
+                        onPressed: loading
+                            ? null
+                            : () {
+                                page++;
+                                _load(append: true);
+                              },
+                        child: const Text('Charger plus de notifications'))),
+              Padding(
+                  padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                      'Données de démonstration · aucun push réel n’est envoyé.',
+                      'Notifications chargées depuis le serveur. Le flux temps réel n’est pas proposé par l’API.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: AppTheme.textSecondary, fontSize: 12))),
@@ -139,10 +169,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
 
   IconData _icon(String? type) => switch (type) {
-        'new_message' => LucideIcons.messageCircle,
-        'proposal_received' => LucideIcons.clipboardCheck,
-        'appointment_confirmed' => LucideIcons.calendarCheck,
-        _ => LucideIcons.bell,
+        'new_message' => LineAwesomeIcons.comment_dots_solid,
+        'proposal_received' => LineAwesomeIcons.clipboard_check_solid,
+        'appointment_confirmed' => LineAwesomeIcons.calendar_check_solid,
+        _ => LineAwesomeIcons.bell_solid,
       };
 
   String _date(String? raw) {

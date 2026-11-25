@@ -1,22 +1,23 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import '../config/app_environment.dart';
 
 /// HTTP client for the API's copied V2 routes (for example `/auth/v2/login`).
-/// Configure its origin with `--dart-define=API_BASE_URL=https://...`.
+/// Base URL is read at startup from the bundled `.env.json` file.
 class MedilinkApi {
   MedilinkApi._();
 
   static final MedilinkApi instance = MedilinkApi._();
-  static const String _configuredBaseUrl =
-      String.fromEnvironment('API_BASE_URL');
+  static String get _apiBaseUrl => AppEnvironment.apiBaseUrl.trim();
 
   final http.Client _http = http.Client();
   String? _idToken;
   String? _refreshToken;
   String? _userId;
+  void Function()? onSessionExpired;
 
-  bool get isConfigured => _configuredBaseUrl.trim().isNotEmpty;
+  bool get isConfigured => _apiBaseUrl.trim().isNotEmpty;
   bool get isAuthenticated => _idToken?.isNotEmpty == true;
   String? get userId => _userId;
 
@@ -28,10 +29,13 @@ class MedilinkApi {
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async =>
-      _asMap(await post('auth/v2/login', {
-        'email': email,
-        'password': password,
-      }, authenticated: false));
+      _asMap(await post(
+          'auth/v2/login',
+          {
+            'email': email,
+            'password': password,
+          },
+          authenticated: false));
 
   Future<Map<String, dynamic>> register(Map<String, dynamic> values) async =>
       _asMap(await post('auth/v2/register', values, authenticated: false));
@@ -48,6 +52,35 @@ class MedilinkApi {
       _userId = null;
     }
   }
+
+  /// Renouvelle le token d'accès à partir du refresh token.
+  /// Retourne la nouvelle session (idToken, refreshToken, user).
+  Future<Map<String, dynamic>> refresh(String refreshToken) async =>
+      _asMap(await post(
+          'auth/v2/refresh',
+          {
+            'refreshToken': refreshToken,
+          },
+          authenticated: false));
+
+  /// Demande une réinitialisation de mot de passe.
+  Future<Map<String, dynamic>> resetPassword(String email) async =>
+      _asMap(await post(
+          'auth/v2/reset-password',
+          {
+            'email': email,
+          },
+          authenticated: false));
+
+  Future<Map<String, dynamic>> googleStatus(String idToken) async =>
+      _asMap(await post('auth/v2/google/status', {'idToken': idToken},
+          authenticated: false));
+
+  Future<Map<String, dynamic>> googleComplete(
+          String idToken, String role) async =>
+      _asMap(await post(
+          'auth/v2/google/complete', {'idToken': idToken, 'role': role},
+          authenticated: false));
 
   Future<dynamic> get(String path, {Map<String, String>? query}) =>
       _send('GET', path, query: query);
@@ -81,7 +114,8 @@ class MedilinkApi {
     request.files.addAll(files);
     try {
       final streamed = await _http.send(request);
-      return _decode(streamed.statusCode, await streamed.stream.bytesToString());
+      return _decode(
+          streamed.statusCode, await streamed.stream.bytesToString());
     } on http.ClientException {
       throw const MedilinkApiException(
         'Connexion API impossible. Vérifiez l’adresse API et le réseau.',
@@ -123,7 +157,7 @@ class MedilinkApi {
             retryOnUnauthorized: false,
           ));
           setSession(refreshed);
-          return _send(
+          return await _send(
             method,
             path,
             query: query,
@@ -135,6 +169,7 @@ class MedilinkApi {
           _idToken = null;
           _refreshToken = null;
           _userId = null;
+          onSessionExpired?.call();
           throw const MedilinkApiException(
             'Session expirée. Veuillez vous reconnecter.',
             statusCode: 401,
@@ -157,7 +192,7 @@ class MedilinkApi {
       };
 
   Uri _uri(String path, [Map<String, String>? query]) {
-    final base = _configuredBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    final base = _apiBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
     return Uri.parse('$base/$path').replace(queryParameters: query);
   }
 
@@ -172,9 +207,8 @@ class MedilinkApi {
     }
     if (statusCode < 200 || statusCode >= 300) {
       final rawMessage = value is Map ? value['message'] : null;
-      final message = rawMessage is List
-          ? rawMessage.join('\n')
-          : rawMessage?.toString();
+      final message =
+          rawMessage is List ? rawMessage.join('\n') : rawMessage?.toString();
       throw MedilinkApiException(
         message?.isNotEmpty == true
             ? message!
@@ -187,8 +221,12 @@ class MedilinkApi {
 
   List<Map<String, dynamic>> _asList(dynamic value) {
     if (value is List)
-      return value.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
-    if (value is Map) return <Map<String, dynamic>>[Map<String, dynamic>.from(value)];
+      return value
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
+    if (value is Map)
+      return <Map<String, dynamic>>[Map<String, dynamic>.from(value)];
     throw const MedilinkApiException('Réponse API inattendue.');
   }
 
@@ -197,6 +235,7 @@ class MedilinkApi {
     if (value is Map) return Map<String, dynamic>.from(value);
     throw const MedilinkApiException('Réponse API inattendue.');
   }
+
   // ── Rendez-vous (endpoints /appointments/v2/…) ──
   Future<List<Map<String, dynamic>>> appointmentsList() async =>
       _asList(await get('appointments/v2'));
@@ -207,10 +246,12 @@ class MedilinkApi {
   Future<Map<String, dynamic>> appointmentDetail(String id) async =>
       _asMap(await get('appointments/v2/${Uri.encodeComponent(id)}'));
 
-  Future<Map<String, dynamic>> appointmentCreate(Map<String, dynamic> data) async =>
+  Future<Map<String, dynamic>> appointmentCreate(
+          Map<String, dynamic> data) async =>
       _asMap(await post('appointments/v2', data));
 
-  Future<Map<String, dynamic>> appointmentUpdateStatus(String id, String status) async =>
+  Future<Map<String, dynamic>> appointmentUpdateStatus(
+          String id, String status) async =>
       _asMap(await patch(
         'appointments/v2/${Uri.encodeComponent(id)}/status',
         {'status': status},
@@ -237,7 +278,8 @@ class MedilinkApi {
   }) async {
     final query = <String, String>{};
     if (q != null && q.isNotEmpty) query['q'] = q;
-    if (specialty != null && specialty.isNotEmpty) query['specialty'] = specialty;
+    if (specialty != null && specialty.isNotEmpty)
+      query['specialty'] = specialty;
     if (city != null && city.isNotEmpty) query['city'] = city;
     return _asMap(await get('doctors/v2', query: query));
   }
@@ -259,7 +301,8 @@ class MedilinkApi {
   }) async {
     final data = <String, dynamic>{};
     if (bio != null) data['bio'] = bio;
-    if (yearsOfExperience != null) data['yearsOfExperience'] = yearsOfExperience;
+    if (yearsOfExperience != null)
+      data['yearsOfExperience'] = yearsOfExperience;
     if (consultationFee != null) data['consultationFee'] = consultationFee;
     if (professionalAddress != null)
       data['professionalAddress'] = professionalAddress;
@@ -303,19 +346,36 @@ class MedilinkApi {
   Future<void> patientDeleteDocument(String id) async =>
       await delete('patients/v2/me/documents/${Uri.encodeComponent(id)}');
 
+  Future<Map<String, dynamic>> patientSaveProfile({
+    required String name,
+    required String phone,
+    required String bloodType,
+    required String city,
+    required String district,
+  }) async =>
+      _asMap(await patch('integration/v2/patient/profile', {
+        'name': name,
+        'phone': phone,
+        'bloodType': bloodType,
+        'city': city,
+        'district': district,
+      }));
+
   // ── Disponibilités médecin (endpoints /availabilities/v2/me/…) ──
   final String _availabilitiesBase = 'availabilities/v2/me';
 
   Future<List<Map<String, dynamic>>> availabilityModes() async =>
       _asList(await get('$_availabilitiesBase/modes'));
 
-  Future<List<Map<String, dynamic>>> availabilitySetModes(List<String> modes) async =>
+  Future<List<Map<String, dynamic>>> availabilitySetModes(
+          List<String> modes) async =>
       _asList(await put('$_availabilitiesBase/modes', {'modes': modes}));
 
   Future<Map<String, dynamic>> availabilityDuration() async =>
       _asMap(await get('$_availabilitiesBase/duration'));
 
-  Future<Map<String, dynamic>> availabilitySetDuration(int durationMinutes) async =>
+  Future<Map<String, dynamic>> availabilitySetDuration(
+          int durationMinutes) async =>
       _asMap(await patch(
         '$_availabilitiesBase/duration',
         {'durationMinutes': durationMinutes},
@@ -374,8 +434,8 @@ class MedilinkApi {
         },
       ));
 
-  Future<Map<String, dynamic>> needClose(String id) async =>
-      _asMap(await patch('needs/v2/${Uri.encodeComponent(id)}/close', const {}));
+  Future<Map<String, dynamic>> needClose(String id) async => _asMap(
+      await patch('needs/v2/${Uri.encodeComponent(id)}/close', const {}));
 
   Future<Map<String, dynamic>> needDelete(String id) async =>
       _asMap(await delete('needs/v2/${Uri.encodeComponent(id)}'));
@@ -390,7 +450,8 @@ class MedilinkApi {
   }) async {
     final query = <String, String>{};
     if (q != null && q.isNotEmpty) query['q'] = q;
-    if (specialty != null && specialty.isNotEmpty) query['specialty'] = specialty;
+    if (specialty != null && specialty.isNotEmpty)
+      query['specialty'] = specialty;
     if (priority != null && priority.isNotEmpty) query['priority'] = priority;
     if (mode != null && mode.isNotEmpty) query['mode'] = mode;
     if (page != null) query['page'] = page.toString();
@@ -429,16 +490,21 @@ class MedilinkApi {
     };
     if (details != null) data['details'] = details;
     return _asMap(await post(
-      'needs/v2/${Uri.encodeComponent(id)}/proposals',
+      'needs/v2/doctor/${Uri.encodeComponent(id)}/proposals',
       data,
     ));
   }
 
-  Future<dynamic> needCancelProposal(String id) async =>
-      patch(
+  Future<dynamic> needCancelProposal(String id) async => patch(
         'needs/v2/doctor/proposals/${Uri.encodeComponent(id)}/cancel',
         const {},
       );
+
+  Future<Map<String, dynamic>> needAcceptProposal(
+          String needId, String proposalId) async =>
+      _asMap(await patch(
+          'needs/v2/${Uri.encodeComponent(needId)}/proposals/${Uri.encodeComponent(proposalId)}/accept',
+          const {}));
 
   // ── Messagerie (endpoints /messages/v2/conversations/…) ──
   Future<Map<String, dynamic>> messagesList() async =>
@@ -509,7 +575,8 @@ class MedilinkApi {
     return _asMap(await get('admin/v2/accounts', query: query));
   }
 
-  Future<Map<String, dynamic>> adminUpdateAccountStatus(String id, String status) async =>
+  Future<Map<String, dynamic>> adminUpdateAccountStatus(
+          String id, String status) async =>
       _asMap(await patch(
         'admin/v2/accounts/${Uri.encodeComponent(id)}/status',
         {'status': status},
@@ -522,21 +589,35 @@ class MedilinkApi {
   }) async {
     final data = <String, dynamic>{};
     if (emailVerified != null) data['emailVerified'] = emailVerified;
-    if (verificationStatus != null) data['verificationStatus'] = verificationStatus;
+    if (verificationStatus != null)
+      data['verificationStatus'] = verificationStatus;
     return _asMap(await patch(
       'admin/v2/accounts/${Uri.encodeComponent(id)}/verification',
       data,
     ));
   }
 
-  Future<Map<String, dynamic>> adminCreateAdmin(Map<String, dynamic> data) async =>
+  Future<Map<String, dynamic>> adminCreateAdmin(
+          Map<String, dynamic> data) async =>
       _asMap(await post('admin/v2/admins', data));
+
+  Future<Map<String, dynamic>> adminUpdateProfile({
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) async =>
+      _asMap(await patch('auth/v2/admin/profile', {
+        'firstName': firstName,
+        'lastName': lastName,
+        'phone': phone,
+      }));
 
   // ── Intégrations (endpoints /integration/v2/…) ──
   Future<Map<String, dynamic>> integrationDoctorZone() async =>
       _asMap(await get('integration/v2/doctor/zone'));
 
-  Future<Map<String, dynamic>> integrationSaveDoctorZone(Map<String, dynamic> data) async =>
+  Future<Map<String, dynamic>> integrationSaveDoctorZone(
+          Map<String, dynamic> data) async =>
       _asMap(await put('integration/v2/doctor/zone', data));
 
   Future<Map<String, dynamic>> integrationSavePatientProfile({
@@ -557,9 +638,9 @@ class MedilinkApi {
         },
       ));
 
-  Future<Map<String, dynamic>> integrationContact(Map<String, dynamic> data) async =>
+  Future<Map<String, dynamic>> integrationContact(
+          Map<String, dynamic> data) async =>
       _asMap(await post('integration/v2/contact', data, authenticated: false));
-
 }
 
 class MedilinkApiException implements Exception {

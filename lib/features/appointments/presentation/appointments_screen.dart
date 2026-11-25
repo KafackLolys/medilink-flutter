@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/api/medilink_api.dart';
-import '../../../core/data/demo_data.dart';
+import '../../../core/data/live_state.dart';
 import '../../../core/theme/app_theme.dart';
 
 class AppointmentsScreen extends StatefulWidget {
@@ -16,6 +16,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   String filter = 'Tous';
   final search = TextEditingController();
   bool loadingApi = false;
+  bool hasApiResponse = false;
   String? apiError;
 
   @override
@@ -36,7 +37,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               ? response['items']
               : null;
       final rows = raw is List
-          ? raw.whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList()
+          ? raw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
           : <Map<String, dynamic>>[];
       if (!widget.doctor) {
         for (final row in rows.where((item) => item['status'] == 'completed')) {
@@ -50,18 +54,21 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
         }
       }
       final destination = widget.doctor
-          ? DemoData.doctorAppointments
-          : DemoData.patientAppointments;
+          ? LiveState.doctorAppointments
+          : LiveState.patientAppointments;
       destination
         ..clear()
         ..addAll(rows);
+      hasApiResponse = true;
       apiError = null;
     } catch (exception) {
       apiError = exception.toString();
+      hasApiResponse = true;
     } finally {
       if (mounted) setState(() => loadingApi = false);
     }
   }
+
   @override
   void dispose() {
     search.dispose();
@@ -70,20 +77,52 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final source = widget.doctor
-        ? DemoData.doctorAppointments
-        : DemoData.patientAppointments;
+    final source = MedilinkApi.instance.isConfigured &&
+            (apiError != null || !hasApiResponse)
+        ? <Map<String, dynamic>>[]
+        : widget.doctor
+            ? LiveState.doctorAppointments
+            : LiveState.patientAppointments;
     final rows = source.where((row) {
       final doctor = row['doctor'] as Map<String, dynamic>?;
       final text =
           '${row['patient'] ?? ''} ${doctor?['name'] ?? ''} ${doctor?['specialty'] ?? ''}'
               .toLowerCase();
       final queryMatches = text.contains(search.text.trim().toLowerCase());
-      final statusMatches =
-          filter == 'Tous' || _status(row['status']?.toString()) == filter;
+      final rawStatus = row['status']?.toString();
+      final statusMatches = filter == 'Tous' ||
+          switch (filter) {
+            'À confirmer' ||
+            'En attente' =>
+              rawStatus == 'pending_confirmation',
+            'Confirmé' => rawStatus == 'confirmed',
+            'Terminé' => rawStatus == 'completed',
+            'Annulé' => rawStatus == 'cancelled' ||
+                (widget.doctor && rawStatus == 'no_show'),
+            'Refusé' => rawStatus == 'rejected',
+            'Absent' => rawStatus == 'no_show',
+            _ => false,
+          };
       return queryMatches && statusMatches;
     }).toList();
-    const filters = ['Tous', 'À venir', 'Terminés', 'Annulés'];
+    final filters = widget.doctor
+        ? const [
+            'Tous',
+            'À confirmer',
+            'Confirmé',
+            'Terminé',
+            'Annulé',
+            'Refusé'
+          ]
+        : const [
+            'Tous',
+            'En attente',
+            'Confirmé',
+            'Terminé',
+            'Annulé',
+            'Refusé',
+            'Absent'
+          ];
     return ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
@@ -92,17 +131,24 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   color: AppTheme.textPrimary, fontWeight: FontWeight.w800)),
           if (loadingApi) const LinearProgressIndicator(),
           if (apiError != null)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('API indisponible · rendez-vous template affichés.'),
-            ),
+            Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Chargement impossible : $apiError'),
+                      TextButton.icon(
+                          onPressed: loadingApi ? null : _loadAppointments,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Réessayer'))
+                    ])),
           const SizedBox(height: 14),
           TextField(
               controller: search,
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                   hintText: 'Rechercher une consultation',
-                  prefixIcon: Icon(LucideIcons.search))),
+                  prefixIcon: Icon(LineAwesomeIcons.search_solid))),
           const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -120,7 +166,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          if (rows.isEmpty)
+          if (rows.isEmpty && loadingApi)
+            const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()))
+          else if (rows.isEmpty)
             const Padding(
                 padding: EdgeInsets.all(40),
                 child: Center(child: Text('Aucun rendez-vous correspondant.')))
@@ -141,7 +191,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   child: ListTile(
                     leading: CircleAvatar(
                         backgroundColor: AppTheme.primary.withOpacity(.1),
-                        child: const Icon(LucideIcons.calendarCheck,
+                        child: const Icon(LineAwesomeIcons.calendar_check_solid,
                             color: AppTheme.primary)),
                     title: Text(title,
                         style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -151,13 +201,12 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                     isThreeLine: true,
                     trailing: widget.doctor
                         ? Chip(label: Text(_status(row['status']?.toString())))
-                        : const Icon(LucideIcons.chevronRight, size: 18),
+                        : const Icon(LineAwesomeIcons.angle_right_solid,
+                            size: 18),
                     onTap: () => _showDetail(row, title, date, detail),
                   ));
             }),
           const SizedBox(height: 8),
-          const Text('Mode démonstration · les changements restent locaux.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
         ]);
   }
 
@@ -186,20 +235,28 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                         if (row['review'] == null)
                           FilledButton.icon(
                             onPressed: () => _review(row),
-                            icon: const Icon(LucideIcons.star),
+                            icon: const Icon(LineAwesomeIcons.star_solid),
                             label: const Text('Noter cette consultation'),
                           )
                         else
                           Chip(
-                            avatar: const Icon(LucideIcons.star, size: 16),
+                            avatar: const Icon(LineAwesomeIcons.star_solid,
+                                size: 16),
                             label: Text(
                                 'Avis envoyé · ${row['review']['rating']}/5'),
                           ),
-                      if (widget.doctor && row['status'] == 'confirmed')
+                      if (widget.doctor &&
+                          row['status'] == 'pending_confirmation')
                         Wrap(spacing: 8, children: [
                           OutlinedButton(
-                              onPressed: () => _updateStatus(row, 'cancelled'),
-                              child: const Text('Annuler')),
+                              onPressed: () => _updateStatus(row, 'rejected'),
+                              child: const Text('Refuser')),
+                          FilledButton(
+                              onPressed: () => _updateStatus(row, 'confirmed'),
+                              child: const Text('Confirmer')),
+                        ]),
+                      if (widget.doctor && row['status'] == 'confirmed')
+                        Wrap(spacing: 8, children: [
                           FilledButton(
                               onPressed: () => _updateStatus(row, 'completed'),
                               child: const Text('Marquer terminé')),
@@ -212,14 +269,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     String status,
   ) async {
     try {
-      if (MedilinkApi.instance.isConfigured) {
-        await MedilinkApi.instance.patch(
-          'appointments/v2/${Uri.encodeComponent(appointment['id'].toString())}/status',
-          {'status': status},
-        );
-      }
+      await MedilinkApi.instance
+          .appointmentUpdateStatus(appointment['id'].toString(), status);
       if (!mounted) return;
       setState(() => appointment['status'] = status);
+      await _loadAppointments();
       Navigator.pop(context);
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -245,7 +299,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                           tooltip: 'Note ${index + 1}/5',
                           onPressed: () =>
                               setDialogState(() => rating = index + 1),
-                          icon: Icon(LucideIcons.star,
+                          icon: Icon(LineAwesomeIcons.star_solid,
                               color: index < rating
                                   ? const Color(0xfff2a900)
                                   : Colors.black26),
@@ -273,12 +327,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     comment.dispose();
     if (result == null || !mounted) return;
     try {
-      if (MedilinkApi.instance.isConfigured) {
-        await MedilinkApi.instance.post(
-          'appointments/v2/${Uri.encodeComponent(appointment['id'].toString())}/review',
-          {'rating': rating, 'comment': result.isEmpty ? null : result},
-        );
-      }
+      await MedilinkApi.instance.appointmentSubmitReview(
+        appointment['id'].toString(),
+        rating: rating,
+        comment: result.isEmpty ? null : result,
+      );
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Envoi de l’avis impossible : $exception')),
@@ -300,10 +353,12 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   }
 
   String _status(String? value) => switch (value) {
-        'pending_confirmation' => 'En attente',
-        'confirmed' => 'À venir',
-        'completed' => 'Terminés',
-        'cancelled' => 'Annulés',
+        'pending_confirmation' => widget.doctor ? 'À confirmer' : 'En attente',
+        'confirmed' => 'Confirmé',
+        'completed' => 'Terminé',
+        'cancelled' => 'Annulé',
+        'rejected' => 'Refusé',
+        'no_show' => widget.doctor ? 'Annulé' : 'Absent',
         null || '' => 'À confirmer',
         _ => value.replaceAll('_', ' '),
       };
