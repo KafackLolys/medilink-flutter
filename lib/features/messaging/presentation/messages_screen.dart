@@ -216,6 +216,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   late List<Map<String, dynamic>> messages;
   String? apiError;
   bool loading = false;
+  bool sending = false;
   String get currentUserId => MedilinkApi.instance.userId ?? '';
   final messagingSocket = MessagingSocketService.instance;
   void _onSocketMessage(dynamic payload) {
@@ -228,12 +229,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final item = Map<String, dynamic>.from(raw);
     if (messages.any((m) => m['id']?.toString() == item['id']?.toString()))
       return;
-    setState(() => messages.add({
-          ...item,
-          'senderId': item['senderUserId'],
-          'content': item['body'],
-          'createdAt': item['sentAt']
-        }));
+    final pendingIndex = messages.indexWhere((m) =>
+        m['deliveryStatus'] == 'sending' &&
+        m['senderId']?.toString() == currentUserId &&
+        m['content']?.toString() == item['body']?.toString());
+    setState(() {
+      final confirmed = {
+        ...item,
+        'senderId': item['senderUserId'],
+        'content': item['body'],
+        'createdAt': item['sentAt'],
+        'deliveryStatus': 'sent',
+      };
+      if (pendingIndex >= 0) {
+        messages[pendingIndex] = confirmed;
+      } else {
+        messages.add(confirmed);
+      }
+    });
     if (item['senderUserId']?.toString() != currentUserId) {
       MedilinkApi.instance
           .conversationMarkRead(widget.conversation['id'].toString());
@@ -321,21 +334,53 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<void> send() async {
     final text = controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || sending) return;
+    final pendingId = 'pending-${DateTime.now().microsecondsSinceEpoch}';
+    final pending = {
+      'id': pendingId,
+      'senderId': currentUserId,
+      'content': text,
+      'createdAt': DateTime.now().toIso8601String(),
+      'deliveryStatus': 'sending',
+    };
+    setState(() {
+      sending = true;
+      messages.add(pending);
+      controller.clear();
+    });
     try {
       final sent = await MedilinkApi.instance
           .messageSend(widget.conversation['id'].toString(), text);
       if (!mounted) return;
-      controller.clear();
       final item = {
         ...sent,
         'senderId': sent['senderUserId'],
         'content': sent['body'],
-        'createdAt': sent['sentAt']
+        'createdAt': sent['sentAt'],
+        'deliveryStatus': 'sent',
       };
-      if (!messages.any((m) => m['id'] == item['id']))
-        setState(() => messages.add(item));
+      setState(() {
+        final pendingIndex = messages.indexWhere((m) => m['id'] == pendingId);
+        final confirmedIndex = messages.indexWhere((m) => m['id'] == item['id']);
+        if (pendingIndex >= 0) {
+          messages[pendingIndex] = item;
+          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
+            messages.removeAt(confirmedIndex);
+          }
+        } else if (confirmedIndex < 0) {
+          messages.add(item);
+        }
+        sending = false;
+      });
     } catch (exception) {
+      if (!mounted) return;
+      setState(() {
+        final index = messages.indexWhere((m) => m['id'] == pendingId);
+        if (index >= 0) {
+          messages[index] = {...messages[index], 'deliveryStatus': 'failed'};
+        }
+        sending = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Envoi impossible : $exception')));
     }
@@ -392,11 +437,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                     mine ? const Radius.circular(4) : null,
                                 bottomLeft:
                                     mine ? null : const Radius.circular(4))),
-                        child: Text(message['content'].toString(),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Text(message['content'].toString(),
                             style: TextStyle(
                                 color:
                                     mine ? Colors.white : AppTheme.textPrimary,
                                 height: 1.35)),
+                          if (message['deliveryStatus'] == 'sending' || message['deliveryStatus'] == 'failed')
+                            Padding(padding: const EdgeInsets.only(top: 4), child: Text(message['deliveryStatus'] == 'sending' ? 'Envoi…' : 'Échec de l’envoi', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10))),
+                        ]),
                       ));
                 })),
         SafeArea(
@@ -414,7 +463,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               hintText: 'Votre message', counterText: ''))),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                      onPressed: send,
+                      onPressed: sending ? null : send,
                       tooltip: 'Envoyer le message',
                       icon: const Icon(LineAwesomeIcons.paper_plane_solid)),
                 ]))),
