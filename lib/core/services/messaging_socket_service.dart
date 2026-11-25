@@ -25,7 +25,6 @@ class MessagingSocketService {
       .setAuth({'token': token})
       .disableAutoConnect()
       .enableReconnection()
-      .setReconnectionAttempts(0)
       .setReconnectionDelay(1000)
       .setReconnectionDelayMax(10000)
       .build());
