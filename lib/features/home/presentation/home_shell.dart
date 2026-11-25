@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
@@ -25,7 +27,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int selected = 0;
   int appointmentRefresh = 0;
   int needsRefresh = 0, proposalsRefresh = 0, messagesRefresh = 0;
@@ -34,6 +36,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     PushNotificationService.instance.addListener(_onPushUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final conversationId =
@@ -44,8 +47,16 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     PushNotificationService.instance.removeListener(_onPushUpdate);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(NotificationsScreen.refreshUnreadCount());
+    }
   }
 
   String? _openingConversationId;
@@ -97,6 +108,7 @@ class _HomeShellState extends State<HomeShell> {
   void _onPushUpdate() {
     if (!mounted) return;
     setState(() {});
+    unawaited(NotificationsScreen.refreshUnreadCount());
     final conversationId =
         PushNotificationService.instance.takePendingConversationId();
     if (conversationId != null) {
@@ -223,10 +235,8 @@ class _HomeShellState extends State<HomeShell> {
             },
             icon: Badge(
               label: Text(
-                  '${NotificationsScreen.unreadCount + PushNotificationService.instance.messages.length}'),
-              isLabelVisible: (NotificationsScreen.unreadCount +
-                      PushNotificationService.instance.messages.length) >
-                  0,
+                  '${NotificationsScreen.unreadCount}'),
+              isLabelVisible: NotificationsScreen.unreadCount > 0,
               child: const Icon(LineAwesomeIcons.bell_solid),
             ),
           ),
@@ -286,10 +296,8 @@ class _HomeShellState extends State<HomeShell> {
                 },
                 icon: Badge(
                     label: Text(
-                        '${NotificationsScreen.unreadCount + PushNotificationService.instance.messages.length}'),
-                    isLabelVisible: (NotificationsScreen.unreadCount +
-                            PushNotificationService.instance.messages.length) >
-                        0,
+                        '${NotificationsScreen.unreadCount}'),
+                    isLabelVisible: NotificationsScreen.unreadCount > 0,
                     child: const Icon(LineAwesomeIcons.bell_solid))),
             IconButton(
                 tooltip: 'Déconnexion',
