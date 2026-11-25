@@ -625,6 +625,10 @@ class MedilinkApi {
       'deviceId': deviceId,
       'token': token,
       'platform': platform,
+      // This Flutter application delivers push notifications through Novu.
+      // The backend keeps the Novu secret key server-side and routes other apps
+      // through their own configured provider.
+      'pushProvider': 'novu',
     };
     if (userAgent != null) data['userAgent'] = userAgent;
     return _asMap(await post('notifications/v2/devices', data));
