@@ -18,9 +18,17 @@ flutter pub get
 
 ## Connexion à l'API v2
 
-Le client reçoit `API_BASE_URL` et `GOOGLE_CLIENT_ID` comme constantes de compilation avec `--dart-define-from-file=.env.json`. Ce fichier est l’unique source de configuration : modifiez-le pour changer les valeurs et conservez cette option à chaque lancement. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
+Le client reçoit `API_BASE_URL` et `GOOGLE_CLIENT_ID` comme constantes de compilation avec `--dart-define-from-file=.env.json`. Le fichier local `.env.json` n'est pas versionné : créez-le à partir du modèle suivi `.env.example.json` :
 
-La configuration debug BlueStacks et celle de VS Code passent toutes deux ce même fichier à Flutter.
+```powershell
+Copy-Item .env.example.json .env.json
+```
+
+Le modèle contient l'identifiant OAuth Web associé au projet Android Firebase `medilink-2027`, ainsi que les valeurs Firebase Web communes récupérées depuis la configuration Android. Pour activer Firebase Web/FCM, renseignez aussi `FIREBASE_WEB_APP_ID` et `FIREBASE_WEB_VAPID_KEY` depuis Firebase Console > Paramètres du projet > application Web / Cloud Messaging. Les cinq valeurs du service worker `web/firebase-messaging-sw.js` doivent provenir du même projet Firebase.
+
+Pour `API_BASE_URL` : utilisez `http://10.0.2.2:3000` depuis l'émulateur Android standard (accès au PC hôte), `http://localhost:3000` depuis Chrome sur le PC, ou l'adresse IPv4 locale du PC si BlueStacks ne route pas via `10.0.2.2`. N'utilisez pas `localhost` depuis Android pour joindre le backend du PC.
+
+La configuration debug BlueStacks et celle de VS Code passent toutes deux le fichier local `.env.json` à Flutter. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
 
 Sans API configurée ou joignable, la connexion, l’inscription et les actions serveur affichent une erreur. Les listes démarrent vides et sont alimentées par les réponses API. Consultez [BLUESTACKS.md](BLUESTACKS.md) pour le routage de l’API locale depuis BlueStacks.
 
