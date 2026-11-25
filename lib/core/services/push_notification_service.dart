@@ -342,13 +342,19 @@ class PushNotificationService extends ChangeNotifier {
 
         final android = _local.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-        await android?.requestNotificationsPermission();
+        final localPermission = await android?.requestNotificationsPermission();
+        debugPrint(
+          '[FCM] Android local notification permission: $localPermission',
+        );
 
-        await _messaging.requestPermission(
+        final permission = await _messaging.requestPermission(
           alert: true,
           badge: true,
           sound: true,
           provisional: false,
+        );
+        debugPrint(
+          '[FCM] Firebase notification authorization: ${permission.authorizationStatus}',
         );
         await _messaging.setForegroundNotificationPresentationOptions(
           alert: true,
@@ -360,6 +366,7 @@ class PushNotificationService extends ChangeNotifier {
       token = await _messaging.getToken(
         vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
       );
+      debugPrint('[FCM] Registration token available: ${token?.isNotEmpty == true}');
 
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         token = newToken;
@@ -372,10 +379,21 @@ class PushNotificationService extends ChangeNotifier {
 
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
+        debugPrint(
+          '[FCM] Foreground message received: id=${message.messageId}, '
+          'type=${message.data['type']}, '
+          'hasNotification=${message.notification != null}',
+        );
         _addMessage(message);
         latestForegroundMessage = message;
         if (defaultTargetPlatform == TargetPlatform.android) {
-          await _showRemoteNotification(message, _local);
+          try {
+            await _showRemoteNotification(message, _local);
+            debugPrint('[FCM] Foreground local notification displayed.');
+          } catch (exception, stackTrace) {
+            debugPrint('[FCM] Foreground display failed: $exception');
+            debugPrintStack(stackTrace: stackTrace);
+          }
         }
         notifyListeners();
       });
@@ -479,9 +497,11 @@ class PushNotificationService extends ChangeNotifier {
       );
       registeredWithBackend = true;
       error = null;
+      debugPrint('[FCM] Device token successfully registered with MediLink API.');
     } catch (exception) {
       registeredWithBackend = false;
       error = 'Enregistrement du token FCM auprès de Novu impossible : $exception';
+      debugPrint('[FCM] Device registration failed: $exception');
     }
     notifyListeners();
   }
