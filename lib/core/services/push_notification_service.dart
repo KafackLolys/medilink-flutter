@@ -292,9 +292,9 @@ Future<void> _handleNotificationActionInBackground(
     }
 
     final local = FlutterLocalNotificationsPlugin();
-    if (response.id != null) {
-      await local.cancel(id: response.id!);
-    }
+    final localNotificationId =
+        response.id ?? _stableNotificationId('conversation:$conversationId');
+    await local.cancel(id: localNotificationId);
   } catch (_) {
     // Keep the notification visible when the server action could not be
     // completed. The user can retry or open the conversation in MediLink.
