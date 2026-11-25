@@ -60,3 +60,29 @@ Pour tester sur un appareil Android réel :
 5. Contrôlez que la réponse apparaît dans la messagerie et que le compteur de messages non lus diminue.
 
 Les actions rapides nécessitent une nouvelle compilation Android (elles reposent sur le manifeste et les composants natifs).
+
+
+## Notifications push : Flutter → API MediLink → Novu → FCM
+
+L'application Flutter utilise **Novu comme orchestrateur de notifications push**. Firebase Messaging reste nécessaire dans l'application pour obtenir le token FCM, recevoir les messages et les afficher ; l'envoi des notifications est déclenché côté serveur par Novu.
+
+- Après authentification, Flutter enregistre son token auprès de `POST /notifications/v2/devices` avec `pushProvider: "novu"`.
+- L'API déduit le `subscriberId` de l'identifiant Firebase de l'utilisateur connecté. Le client ne peut pas choisir le subscriber d'un autre utilisateur.
+- L'API synchronise les tokens des appareils Flutter avec le subscriber Novu, puis déclenche le workflow pour chaque notification.
+- Les secrets Novu ne sont **jamais** placés dans `.env.json`, `--dart-define` ou l'application.
+- Les autres clients Android qui utilisent le fournisseur Firebase direct conservent leur comportement : le backend sépare les appareils selon `pushProvider`.
+
+Configurer uniquement sur le backend `medilink-api` :
+
+```dotenv
+NOVU_API_BASE_URL=https://<origine-api-novu>
+NOVU_SECRET_KEY=<clé-api-secrète-de-l-environnement>
+NOVU_WORKFLOW_ID=<identifiant-du-workflow-push-medilink>
+NOVU_FCM_INTEGRATION_IDENTIFIER=
+```
+
+`NOVU_API_BASE_URL` doit être l'origine HTTPS de l'API Novu, pas l'URL du tableau de bord et sans suffixe `/v1`. L'identifiant FCM est facultatif s'il n'existe qu'une seule intégration FCM active.
+
+Dans Novu, activer l'intégration Firebase Cloud Messaging avec le compte de service du projet Firebase MediLink, puis créer un workflow Push utilisant au minimum `{{payload.title}}` et `{{payload.body}}`. Le payload expose aussi `notificationId`, `type`, `targetUrl` et les données métier telles que `conversationId`.
+
+Aucune variable Novu n'est requise côté Flutter. Les variables Firebase Web (`FIREBASE_WEB_APP_ID` et `FIREBASE_WEB_VAPID_KEY`) ne sont nécessaires que pour exécuter la variante Web ; elles ne remplacent pas l'intégration FCM Novu pour Android.
