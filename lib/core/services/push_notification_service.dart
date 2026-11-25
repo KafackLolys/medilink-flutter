@@ -50,7 +50,7 @@ Future<void> _initializeLocalNotifications(
 }) async {
   await plugin.initialize(
     settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('ic_stat_medilink'),
       iOS: DarwinInitializationSettings(),
     ),
     onDidReceiveNotificationResponse: onResponse,
@@ -135,7 +135,7 @@ Future<void> _showRemoteNotification(
         channelDescription: _notificationChannel.description,
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: 'ic_stat_medilink',
         category: isChat ? AndroidNotificationCategory.message : null,
         visibility: NotificationVisibility.private,
         onlyAlertOnce: true,
