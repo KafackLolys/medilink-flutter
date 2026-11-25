@@ -39,6 +39,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     PushNotificationService.instance.addListener(_onPushUpdate);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_refreshUnreadCount());
       final conversationId =
           PushNotificationService.instance.takePendingConversationId();
       if (conversationId != null) _openConversation(conversationId);
@@ -55,8 +56,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(NotificationsScreen.refreshUnreadCount());
+      unawaited(_refreshUnreadCount());
     }
+  }
+
+  Future<void> _refreshUnreadCount() async {
+    await NotificationsScreen.refreshUnreadCount();
+    if (mounted) setState(() {});
   }
 
   String? _openingConversationId;
@@ -108,7 +114,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _onPushUpdate() {
     if (!mounted) return;
     setState(() {});
-    unawaited(NotificationsScreen.refreshUnreadCount());
+    unawaited(_refreshUnreadCount());
     final conversationId =
         PushNotificationService.instance.takePendingConversationId();
     if (conversationId != null) {
