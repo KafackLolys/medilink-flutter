@@ -277,46 +277,9 @@ class _LoginState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Divider(
-                            color: Colors.grey.shade300,
-                            thickness: 1,
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            'ou',
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
-                          ),
-                        ),
-                        Expanded(
-                          child: Divider(
-                            color: Colors.grey.shade300,
-                            thickness: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed:
-                          widget.auth.busy ? null : () => _signInWithGoogle(),
-                      icon: const _GoogleLogoIcon(),
-                      label: const Text(
-                        'Continuer avec Google',
-                        style: TextStyle(
-                          color: Color(0xff4285f4),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: Color(0xff4285f4)),
-                      ),
-                    ),
+                    // Authentification Google temporairement masquée.
+                    // Le contrôleur et la méthode Google restent disponibles
+                    // pour une réactivation ultérieure.
                   ],
                 ),
               ),
