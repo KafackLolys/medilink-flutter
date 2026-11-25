@@ -27,13 +27,20 @@ jobs:
         with:
           channel: stable
           cache: true
-      - name: Install Android SDK 37
+      - name: Install Android 17 SDK preview
         shell: bash
         run: |
           SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-37" "build-tools;37.0.0"
+          yes | "$SDKMANAGER" --licenses --channel=3 >/dev/null || true
+          PACKAGE_LIST="$("$SDKMANAGER" --list --channel=3)"
+          PLATFORM="$(printf '%s\n' "$PACKAGE_LIST" | grep -oE 'platforms;android-37(\.0)?' | head -n 1)"
+          BUILD_TOOLS="$(printf '%s\n' "$PACKAGE_LIST" | grep -oE 'build-tools;37\.[0-9]+\.[0-9]+' | sort -V | tail -n 1)"
+          if [ -z "$PLATFORM" ] || [ -z "$BUILD_TOOLS" ]; then
+            echo "Android 17 SDK preview packages were not found in the Canary channel."
+            exit 1
+          fi
+          "$SDKMANAGER" "$PLATFORM" "$BUILD_TOOLS" --channel=3
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze
