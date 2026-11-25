@@ -4,6 +4,7 @@ import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 import '../../../core/api/medilink_api.dart';
 import '../../../core/data/live_state.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/messaging_socket_service.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key, required this.doctor});
@@ -162,13 +163,53 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? apiError;
   bool loading = false;
   String get currentUserId => MedilinkApi.instance.userId ?? '';
+  final messagingSocket = MessagingSocketService.instance;
+  void _onSocketMessage(dynamic payload) {
+    if (!mounted || payload is! Map) return;
+    final data = Map<String, dynamic>.from(payload);
+    if (data['conversationId']?.toString() != widget.conversation['id']?.toString()) return;
+    final raw = data['message'];
+    if (raw is! Map) return;
+    final item = Map<String, dynamic>.from(raw);
+    if (messages.any((m) => m['id']?.toString() == item['id']?.toString())) return;
+    setState(() => messages.add({...item, 'senderId': item['senderUserId'], 'content': item['body'], 'createdAt': item['sentAt']}));
+    if (item['senderUserId']?.toString() != currentUserId) {
+      MedilinkApi.instance.conversationMarkRead(widget.conversation['id'].toString());
+    }
+  }
+  void _onSocketRead(dynamic payload) {
+    if (!mounted || payload is! Map) return;
+    final data = Map<String, dynamic>.from(payload);
+    if (data['conversationId']?.toString() != widget.conversation['id']?.toString() || data['readerUserId']?.toString() == currentUserId) return;
+    setState(() {
+      messages = messages.map((m) => m['senderId']?.toString() == currentUserId ? {...m, 'readAt': data['readAt']} : m).toList();
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     messages = widget.conversation['messages'] as List<Map<String, dynamic>>? ??
         <Map<String, dynamic>>[];
-    if (MedilinkApi.instance.isConfigured) _loadMessages();
+    if (MedilinkApi.instance.isConfigured) {
+      _loadMessages();
+      _connectRealtime();
+    }
+  }
+
+  Future<void> _connectRealtime() async {
+    await messagingSocket.connect();
+    final socket = messagingSocket.socket;
+    if (socket == null) return;
+    socket.off('message:new', _onSocketMessage);
+    socket.off('message:read', _onSocketRead);
+    socket.on('message:new', _onSocketMessage);
+    socket.on('message:read', _onSocketRead);
+    socket.on('connect', (_) {
+      messagingSocket.joinConversation(widget.conversation['id'].toString());
+      _loadMessages();
+    });
+    if (socket.connected) messagingSocket.joinConversation(widget.conversation['id'].toString());
   }
 
   Future<void> _loadMessages() async {
@@ -189,6 +230,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             }).toList()
           : <Map<String, dynamic>>[];
       apiError = null;
+      await MedilinkApi.instance.conversationMarkRead(widget.conversation['id'].toString());
     } catch (exception) {
       apiError = exception.toString();
     } finally {
@@ -198,6 +240,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   @override
   void dispose() {
+    final socket = messagingSocket.socket;
+    socket?.off('message:new', _onSocketMessage);
+    socket?.off('message:read', _onSocketRead);
+    messagingSocket.leaveConversation(widget.conversation['id'].toString());
     controller.dispose();
     super.dispose();
   }
@@ -206,13 +252,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final text = controller.text.trim();
     if (text.isEmpty) return;
     try {
-      await MedilinkApi.instance.messageSend(
-        widget.conversation['id'].toString(),
-        text,
-      );
+      final sent = await MedilinkApi.instance.messageSend(widget.conversation['id'].toString(), text);
       if (!mounted) return;
       controller.clear();
-      await _loadMessages();
+      final item = {...sent, 'senderId': sent['senderUserId'], 'content': sent['body'], 'createdAt': sent['sentAt']};
+      if (!messages.any((m) => m['id'] == item['id'])) setState(() => messages.add(item));
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Envoi impossible : $exception')));
@@ -231,7 +275,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             Text(
-                'Texte · actualisez pour les nouveaux messages',
+                'Messagerie en temps réel',
                 style: const TextStyle(
                     fontSize: 11, color: AppTheme.textSecondary))
           ]),
