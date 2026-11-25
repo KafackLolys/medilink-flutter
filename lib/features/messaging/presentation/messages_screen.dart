@@ -24,19 +24,31 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (!mounted || payload is! Map) return;
     final data = Map<String, dynamic>.from(payload);
     setState(() {
-      conversations = conversations.map((item) => item['id']?.toString() == data['conversationId']?.toString()
-          ? {...item, 'lastMessage': data['preview'] ?? item['lastMessage'], 'lastMessageAt': data['lastMessageAt'], 'unreadCount': data['unreadCount'] ?? item['unreadCount']}
-          : item).toList();
+      conversations = conversations
+          .map((item) =>
+              item['id']?.toString() == data['conversationId']?.toString()
+                  ? {
+                      ...item,
+                      'lastMessage': data['preview'] ?? item['lastMessage'],
+                      'lastMessageAt': data['lastMessageAt'],
+                      'unreadCount': data['unreadCount'] ?? item['unreadCount']
+                    }
+                  : item)
+          .toList();
     });
   }
+
   void _onConversationRead(dynamic payload) {
     if (!mounted || payload is! Map) return;
     final data = Map<String, dynamic>.from(payload);
     if (data['readerUserId']?.toString() != MedilinkApi.instance.userId) return;
     setState(() {
-      conversations = conversations.map((item) => item['id']?.toString() == data['conversationId']?.toString()
-          ? {...item, 'unreadCount': 0}
-          : item).toList();
+      conversations = conversations
+          .map((item) =>
+              item['id']?.toString() == data['conversationId']?.toString()
+                  ? {...item, 'unreadCount': 0}
+                  : item)
+          .toList();
     });
   }
 
@@ -209,22 +221,37 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void _onSocketMessage(dynamic payload) {
     if (!mounted || payload is! Map) return;
     final data = Map<String, dynamic>.from(payload);
-    if (data['conversationId']?.toString() != widget.conversation['id']?.toString()) return;
+    if (data['conversationId']?.toString() !=
+        widget.conversation['id']?.toString()) return;
     final raw = data['message'];
     if (raw is! Map) return;
     final item = Map<String, dynamic>.from(raw);
-    if (messages.any((m) => m['id']?.toString() == item['id']?.toString())) return;
-    setState(() => messages.add({...item, 'senderId': item['senderUserId'], 'content': item['body'], 'createdAt': item['sentAt']}));
+    if (messages.any((m) => m['id']?.toString() == item['id']?.toString()))
+      return;
+    setState(() => messages.add({
+          ...item,
+          'senderId': item['senderUserId'],
+          'content': item['body'],
+          'createdAt': item['sentAt']
+        }));
     if (item['senderUserId']?.toString() != currentUserId) {
-      MedilinkApi.instance.conversationMarkRead(widget.conversation['id'].toString());
+      MedilinkApi.instance
+          .conversationMarkRead(widget.conversation['id'].toString());
     }
   }
+
   void _onSocketRead(dynamic payload) {
     if (!mounted || payload is! Map) return;
     final data = Map<String, dynamic>.from(payload);
-    if (data['conversationId']?.toString() != widget.conversation['id']?.toString() || data['readerUserId']?.toString() == currentUserId) return;
+    if (data['conversationId']?.toString() !=
+            widget.conversation['id']?.toString() ||
+        data['readerUserId']?.toString() == currentUserId) return;
     setState(() {
-      messages = messages.map((m) => m['senderId']?.toString() == currentUserId ? {...m, 'readAt': data['readAt']} : m).toList();
+      messages = messages
+          .map((m) => m['senderId']?.toString() == currentUserId
+              ? {...m, 'readAt': data['readAt']}
+              : m)
+          .toList();
     });
   }
 
@@ -251,7 +278,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
       messagingSocket.joinConversation(widget.conversation['id'].toString());
       _loadMessages();
     });
-    if (socket.connected) messagingSocket.joinConversation(widget.conversation['id'].toString());
+    if (socket.connected)
+      messagingSocket.joinConversation(widget.conversation['id'].toString());
   }
 
   Future<void> _loadMessages() async {
@@ -272,7 +300,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
             }).toList()
           : <Map<String, dynamic>>[];
       apiError = null;
-      await MedilinkApi.instance.conversationMarkRead(widget.conversation['id'].toString());
+      await MedilinkApi.instance
+          .conversationMarkRead(widget.conversation['id'].toString());
     } catch (exception) {
       apiError = exception.toString();
     } finally {
@@ -294,11 +323,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final text = controller.text.trim();
     if (text.isEmpty) return;
     try {
-      final sent = await MedilinkApi.instance.messageSend(widget.conversation['id'].toString(), text);
+      final sent = await MedilinkApi.instance
+          .messageSend(widget.conversation['id'].toString(), text);
       if (!mounted) return;
       controller.clear();
-      final item = {...sent, 'senderId': sent['senderUserId'], 'content': sent['body'], 'createdAt': sent['sentAt']};
-      if (!messages.any((m) => m['id'] == item['id'])) setState(() => messages.add(item));
+      final item = {
+        ...sent,
+        'senderId': sent['senderUserId'],
+        'content': sent['body'],
+        'createdAt': sent['sentAt']
+      };
+      if (!messages.any((m) => m['id'] == item['id']))
+        setState(() => messages.add(item));
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Envoi impossible : $exception')));
@@ -316,8 +352,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             Text(contact,
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            Text(
-                'Messagerie en temps réel',
+            Text('Messagerie en temps réel',
                 style: const TextStyle(
                     fontSize: 11, color: AppTheme.textSecondary))
           ]),

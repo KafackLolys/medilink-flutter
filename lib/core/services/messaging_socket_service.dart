@@ -20,14 +20,16 @@ class MessagingSocketService {
     }
     await disconnect();
     _connectedToken = token;
-    final socket = IO.io(baseUrl, IO.OptionBuilder()
-      .setTransports(['websocket'])
-      .setAuth({'token': token})
-      .disableAutoConnect()
-      .enableReconnection()
-      .setReconnectionDelay(1000)
-      .setReconnectionDelayMax(10000)
-      .build());
+    final socket = IO.io(
+        baseUrl,
+        IO.OptionBuilder()
+            .setTransports(['websocket'])
+            .setAuth({'token': token})
+            .disableAutoConnect()
+            .enableReconnection()
+            .setReconnectionDelay(1000)
+            .setReconnectionDelayMax(10000)
+            .build());
     _socket = socket;
     socket.connect();
   }
@@ -35,9 +37,11 @@ class MessagingSocketService {
   void joinConversation(String id) {
     if (isConnected) _socket!.emit('conversation:join', {'conversationId': id});
   }
+
   void leaveConversation(String id) {
     _socket?.emit('conversation:leave', {'conversationId': id});
   }
+
   Future<void> disconnect() async {
     _socket?.disconnect();
     _socket?.dispose();

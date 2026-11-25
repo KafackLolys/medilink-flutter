@@ -170,9 +170,8 @@ class MedilinkApi {
     request.fields.addAll(fields);
     request.files.addAll(files);
     try {
-      final streamed = await _http
-          .send(request)
-          .timeout(const Duration(seconds: 15));
+      final streamed =
+          await _http.send(request).timeout(const Duration(seconds: 15));
       return _decode(
           streamed.statusCode, await streamed.stream.bytesToString());
     } on http.ClientException {
@@ -200,9 +199,8 @@ class MedilinkApi {
     try {
       final request = http.Request(method, uri)..headers.addAll(headers);
       if (method != 'GET' && body != null) request.body = jsonEncode(body);
-      final streamed = await _http
-          .send(request)
-          .timeout(const Duration(seconds: 15));
+      final streamed =
+          await _http.send(request).timeout(const Duration(seconds: 15));
       final response = await http.Response.fromStream(streamed);
       if (response.statusCode == 401 &&
           authenticated &&
