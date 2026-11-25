@@ -9,9 +9,27 @@ import '../../../core/theme/app_theme.dart';
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
-  static int get unreadCount =>
-      LiveState.notifications.where((row) => row['isRead'] != true).length +
-      PushNotificationService.instance.messages.length;
+  static int _unreadCount = 0;
+  static int get unreadCount => _unreadCount;
+
+  /// Rafraîchit le compteur global depuis le serveur, y compris après une
+  /// action exécutée depuis une notification Android en arrière-plan.
+  static Future<void> refreshUnreadCount() async {
+    if (!MedilinkApi.instance.isConfigured ||
+        !MedilinkApi.instance.isAuthenticated) {
+      return;
+    }
+    try {
+      final response = await MedilinkApi.instance.notificationsList(
+        page: 1,
+        pageSize: 1,
+      );
+      _unreadCount =
+          (response['unreadCount'] as num?)?.toInt() ?? _unreadCount;
+    } catch (_) {
+      // Keep the last known count while offline.
+    }
+  }
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -49,6 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .notificationsList(page: page, pageSize: 20);
       final raw = response['items'];
       totalPages = (response['totalPages'] as num?)?.toInt() ?? 1;
+      _unreadCount =
+          (response['unreadCount'] as num?)?.toInt() ?? _unreadCount;
       final rows = raw is List
           ? raw.whereType<Map>().map((row) {
               final item = Map<String, dynamic>.from(row);
@@ -84,6 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await MedilinkApi.instance.notificationsReadAll();
       if (mounted)
         setState(() {
+          _unreadCount = 0;
           for (final row in LiveState.notifications) {
             row['isRead'] = true;
           }
@@ -99,7 +120,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (row['isRead'] == true) return;
     try {
       await MedilinkApi.instance.notificationRead(row['id'].toString());
-      if (mounted) setState(() => row['isRead'] = true);
+      if (mounted) {
+        setState(() {
+          row['isRead'] = true;
+          if (_unreadCount > 0) _unreadCount--;
+        });
+      }
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Notification non mise à jour : $exception')),
