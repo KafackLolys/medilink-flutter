@@ -3,7 +3,6 @@ import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/api/medilink_api.dart';
 import '../../../core/data/live_state.dart';
-import '../../../core/services/push_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -43,21 +42,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    PushNotificationService.instance.addListener(_onPushChanged);
     if (MedilinkApi.instance.isConfigured) {
       LiveState.notifications.clear();
       _load();
     }
-  }
-
-  @override
-  void dispose() {
-    PushNotificationService.instance.removeListener(_onPushChanged);
-    super.dispose();
-  }
-
-  void _onPushChanged() {
-    if (mounted) setState(() {});
   }
 
   Future<void> _load({bool append = false}) async {
@@ -148,9 +136,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             children: [
-              _buildNovuCard(),
-              const SizedBox(height: 12),
-              _buildPushMessagesSection(),
               if (loading) const LinearProgressIndicator(),
               if (apiError != null)
                 Padding(
@@ -178,7 +163,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       child: ListTile(
                         leading: CircleAvatar(
                             backgroundColor: AppTheme.primary.withOpacity(.1),
-                            child: Icon(_icon(row['type']?.toString()),
+                            child: Icon(_icon(row['type']?.toString(), row['title']?.toString()),
                                 color: AppTheme.primary, size: 19)),
                         title: Text(row['title'].toString(),
                             style: TextStyle(
@@ -207,183 +192,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 _load(append: true);
                               },
                         child: const Text('Charger plus de notifications'))),
-              Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                      'Notifications chargées depuis le serveur. Le flux temps réel n’est pas proposé par l’API.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: AppTheme.textSecondary, fontSize: 12))),
             ]),
       );
 
-  Widget _buildNovuCard() {
-    final push = PushNotificationService.instance;
-    final isRegistered = push.registeredWithBackend;
-    final hasToken = push.token?.isNotEmpty == true;
+  IconData _icon(String? type, String? title) {
+    final normalizedTitle = (title ?? '').toLowerCase();
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isRegistered
-              ? const Color(0xffc2e7ff)
-              : const Color(0xffe0e0e0),
-        ),
-      ),
-      color: isRegistered ? const Color(0xfff0f7ff) : Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    LineAwesomeIcons.bell_solid,
-                    color: AppTheme.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Notifications push',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      Text(
-                        'Firebase Cloud Messaging · MediLink',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isRegistered
-                        ? const Color(0xffe6f4ea)
-                        : const Color(0xfffef7e0),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    isRegistered
-                        ? 'Connecté'
-                        : (hasToken ? 'À enregistrer' : 'En attente'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isRegistered
-                          ? const Color(0xff137333)
-                          : const Color(0xffb06000),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (push.error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                push.error!,
-                style: const TextStyle(color: Colors.red, fontSize: 11),
-              ),
-            ],
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: isRegistered ? null : push.retryRegistration,
-                icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('Réessayer l’enregistrement'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // L'API utilise actuellement appointment_updated pour les demandes
+    // initiales et les changements de statut : le titre permet de les
+    // distinguer visuellement sans modifier les données historiques.
+    if (normalizedTitle.contains('demande de rendez-vous')) {
+      return Icons.event_available_outlined;
+    }
+
+    return switch (type) {
+      'new_message' => LineAwesomeIcons.comment_dots_solid,
+      'proposal_received' => LineAwesomeIcons.clipboard_check_solid,
+      'proposal_accepted' => Icons.assignment_turned_in_outlined,
+      'appointment_updated' => Icons.calendar_month_outlined,
+      'relevant_need' => Icons.medical_services_outlined,
+      'system' => Icons.info_outline,
+      _ => Icons.notifications_none,
+    };
   }
-
-  Widget _buildPushMessagesSection() {
-    final push = PushNotificationService.instance;
-    if (push.messages.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Push reçus en direct (${push.messages.length})',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() => push.messages.clear());
-              },
-              child: const Text('Effacer'),
-            ),
-          ],
-        ),
-        ...push.messages.map((message) {
-          final title = message.notification?.title ??
-              message.data['title']?.toString() ??
-              'Notification MedLink';
-          final body = message.notification?.body ??
-              message.data['body']?.toString() ??
-              '';
-          return Card(
-            color: const Color(0xffe8f0fe),
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppTheme.primary,
-                child: Icon(
-                  LineAwesomeIcons.bell_solid,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              title: Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: body.isNotEmpty ? Text(body) : null,
-              trailing: const Icon(
-                LineAwesomeIcons.check_circle_solid,
-                size: 16,
-                color: AppTheme.primary,
-              ),
-            ),
-          );
-        }),
-        const Divider(height: 24),
-      ],
-    );
-  }
-
-  IconData _icon(String? type) => switch (type) {
-        'new_message' => LineAwesomeIcons.comment_dots_solid,
-        'proposal_received' => LineAwesomeIcons.clipboard_check_solid,
-        'appointment_confirmed' => LineAwesomeIcons.calendar_check_solid,
-        _ => LineAwesomeIcons.bell_solid,
-      };
 
   String _date(String? raw) {
     final parsed = DateTime.tryParse(raw ?? '');

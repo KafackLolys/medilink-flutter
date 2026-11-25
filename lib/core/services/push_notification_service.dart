@@ -319,6 +319,7 @@ class PushNotificationService extends ChangeNotifier {
   String? error;
   RemoteMessage? latestForegroundMessage;
   String? _pendingConversationId;
+  Map<String, dynamic>? _pendingNotificationData;
   bool initialized = false;
   bool registeredWithBackend = false;
 
@@ -342,13 +343,19 @@ class PushNotificationService extends ChangeNotifier {
 
         final android = _local.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-        await android?.requestNotificationsPermission();
+        final localPermission = await android?.requestNotificationsPermission();
+        debugPrint(
+          '[FCM] Android local notification permission: $localPermission',
+        );
 
-        await _messaging.requestPermission(
+        final permission = await _messaging.requestPermission(
           alert: true,
           badge: true,
           sound: true,
           provisional: false,
+        );
+        debugPrint(
+          '[FCM] Firebase notification authorization: ${permission.authorizationStatus}',
         );
         await _messaging.setForegroundNotificationPresentationOptions(
           alert: true,
@@ -360,6 +367,7 @@ class PushNotificationService extends ChangeNotifier {
       token = await _messaging.getToken(
         vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
       );
+      debugPrint('[FCM] Registration token available: ${token?.isNotEmpty == true}');
 
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         token = newToken;
@@ -372,10 +380,21 @@ class PushNotificationService extends ChangeNotifier {
 
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
+        debugPrint(
+          '[FCM] Foreground message received: id=${message.messageId}, '
+          'type=${message.data['type']}, '
+          'hasNotification=${message.notification != null}',
+        );
         _addMessage(message);
         latestForegroundMessage = message;
         if (defaultTargetPlatform == TargetPlatform.android) {
-          await _showRemoteNotification(message, _local);
+          try {
+            await _showRemoteNotification(message, _local);
+            debugPrint('[FCM] Foreground local notification displayed.');
+          } catch (exception, stackTrace) {
+            debugPrint('[FCM] Foreground display failed: $exception');
+            debugPrintStack(stackTrace: stackTrace);
+          }
         }
         notifyListeners();
       });
@@ -391,7 +410,7 @@ class PushNotificationService extends ChangeNotifier {
           final payload = _decodeNotificationPayload(
             launchDetails?.notificationResponse?.payload,
           );
-          _setPendingConversation(payload['conversationId']?.toString());
+          _setPendingNotification(payload);
         }
       }
 
@@ -410,18 +429,34 @@ class PushNotificationService extends ChangeNotifier {
       return;
     }
     final payload = _decodeNotificationPayload(response.payload);
-    _setPendingConversation(payload['conversationId']?.toString());
+    _setPendingNotification(payload);
   }
 
   void _handleRemoteMessageOpened(RemoteMessage message) {
     _addMessage(message);
-    _setPendingConversation(message.data['conversationId']?.toString());
+    _setPendingNotification(Map<String, dynamic>.from(message.data));
   }
 
-  void _setPendingConversation(String? conversationId) {
-    if (conversationId == null || conversationId.isEmpty) return;
+  void _setPendingNotification(Map<String, dynamic> data) {
+    final conversationId = data['conversationId']?.toString();
+    final targetUrl = (data['targetUrl'] ?? data['url'])?.toString();
+    if ((conversationId == null || conversationId.isEmpty) &&
+        (targetUrl == null || targetUrl.isEmpty)) {
+      return;
+    }
+    _pendingNotificationData = <String, dynamic>{
+      ...data,
+      if (targetUrl != null) 'targetUrl': targetUrl,
+    };
     _pendingConversationId = conversationId;
     notifyListeners();
+  }
+
+  Map<String, dynamic>? takePendingNotificationData() {
+    final value = _pendingNotificationData;
+    _pendingNotificationData = null;
+    _pendingConversationId = null;
+    return value;
   }
 
   String? takePendingConversationId() {
@@ -479,9 +514,11 @@ class PushNotificationService extends ChangeNotifier {
       );
       registeredWithBackend = true;
       error = null;
+      debugPrint('[FCM] Device token successfully registered with MediLink API.');
     } catch (exception) {
       registeredWithBackend = false;
       error = 'Enregistrement du token FCM auprès de Novu impossible : $exception';
+      debugPrint('[FCM] Device registration failed: $exception');
     }
     notifyListeners();
   }

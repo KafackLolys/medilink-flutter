@@ -9,3 +9,6 @@ build/
 .idea/
 .env.*
 !.env.example.json
+
+
+medilink-2027-firebase-adminsdk-fbsvc-ebf9a09900.json

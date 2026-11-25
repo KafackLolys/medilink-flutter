@@ -5,6 +5,7 @@ import 'features/auth/application/auth_controller.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/home/presentation/home_shell.dart';
 import 'core/widgets/medilink_logo_mark.dart';
+import 'core/widgets/notification_permission_gate.dart';
 
 class MedLinkApp extends StatelessWidget {
   const MedLinkApp({super.key, required this.auth});
@@ -19,11 +20,13 @@ class MedLinkApp extends StatelessWidget {
         title: 'MedLink',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
-        home: auth.initializing
-            ? const _SessionLoadingScreen()
-            : auth.signedIn
-                ? HomeShell(auth: auth)
-                : LoginScreen(auth: auth),
+        home: NotificationPermissionGate(
+          child: auth.initializing
+              ? const _SessionLoadingScreen()
+              : auth.signedIn
+                  ? HomeShell(auth: auth)
+                  : LoginScreen(auth: auth),
+        ),
       ),
     );
   }
