@@ -61,14 +61,17 @@ class _HomeShellState extends State<HomeShell> {
             (row) => row?['id']?.toString() == conversationId,
             orElse: () => null,
           );
-      final conversation = match == null
-          ? <String, dynamic>{
-              'id': conversationId,
-              'participantName': 'Conversation',
-              'lastMessage': '',
-              'messages': <Map<String, dynamic>>[],
-            }
+      final matched = match == null
+          ? <String, dynamic>{}
           : Map<String, dynamic>.from(match);
+      final conversation = <String, dynamic>{
+        ...matched,
+        'id': conversationId,
+        'participantName':
+            matched['peerName'] ?? matched['participantName'] ?? 'Conversation',
+        'lastMessage': matched['preview'] ?? matched['lastMessage'] ?? '',
+        'messages': <Map<String, dynamic>>[],
+      };
       if (!mounted) return;
       setState(() => selected = 3);
       await Navigator.push(
