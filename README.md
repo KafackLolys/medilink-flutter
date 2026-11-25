@@ -7,7 +7,7 @@ L'intégration API s'inspire de `medilink-mobile` (React Native) : même découp
 ## Prérequis
 
 - Flutter stable 3.44+ (the local-notifications plugin requires this baseline)
-- Android SDK Platform 37 and Build Tools 37.0.0
+- Android 17 Preview SDK (API 37) and the latest Android SDK Build-Tools 37.x, installed from the SDK Manager preview channel
 
 ## Lancement
 
