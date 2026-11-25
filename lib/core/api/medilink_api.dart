@@ -590,6 +590,12 @@ class MedilinkApi {
         {'body': body},
       ));
 
+  Future<Map<String, dynamic>> conversationMarkRead(String id) async =>
+      _asMap(await patch(
+        'messages/v2/conversations/${Uri.encodeComponent(id)}/read',
+        const {},
+      ));
+
   // ── Notifications (endpoints /notifications/v2/…) ──
   Future<Map<String, dynamic>> notificationsList({
     required int page,
