@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/api/medilink_api.dart';
 import '../../../core/config/app_environment.dart';
 import '../../../core/data/live_state.dart';
+import '../../../core/services/push_notification_service.dart';
 
 class AuthController extends ChangeNotifier {
   AuthController() {
@@ -30,6 +31,7 @@ class AuthController extends ChangeNotifier {
       if (restored == null) return;
       _session = restored;
       await retryBackendConnection(notify: false);
+      await PushNotificationService.instance.registerAuthenticatedDevice();
     } catch (_) {
       _session = null;
     } finally {
@@ -127,6 +129,7 @@ class AuthController extends ChangeNotifier {
       }
       _session = session;
       await MedilinkApi.instance.setSession(_session!);
+      await PushNotificationService.instance.registerAuthenticatedDevice();
       startupError = null;
     } catch (exception) {
       _session = null;
@@ -222,6 +225,7 @@ class AuthController extends ChangeNotifier {
       final session = await MedilinkApi.instance.googleComplete(idToken, role);
       _session = session;
       await MedilinkApi.instance.setSession(session);
+      await PushNotificationService.instance.registerAuthenticatedDevice();
     } catch (exception) {
       error = exception is PlatformException &&
               exception.code == 'sign_in_failed' &&
@@ -257,6 +261,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> signOut() async {
     try {
+      await PushNotificationService.instance.unregisterAuthenticatedDevice();
       await MedilinkApi.instance.logout();
     } catch (_) {
       // Clear the local session even if revocation cannot reach the API.
@@ -269,6 +274,7 @@ class AuthController extends ChangeNotifier {
   }
 
   void _clearExpiredSession() {
+    PushNotificationService.instance.clearRegistrationState();
     _session = null;
     LiveState.clearSession();
     notifyListeners();
