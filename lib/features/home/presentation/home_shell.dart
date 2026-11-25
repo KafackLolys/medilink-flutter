@@ -100,6 +100,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ),
         ),
       );
+      await _refreshUnreadCount();
     } catch (exception) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
