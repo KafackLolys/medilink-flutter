@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
+import '../../../core/api/medilink_api.dart';
 import '../../../core/services/push_notification_service.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../appointments/presentation/appointments_screen.dart';
@@ -34,6 +35,11 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     PushNotificationService.instance.addListener(_onPushUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final conversationId =
+          PushNotificationService.instance.takePendingConversationId();
+      if (conversationId != null) _openConversation(conversationId);
+    });
   }
 
   @override
@@ -42,9 +48,59 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  String? _openingConversationId;
+
+  Future<void> _openConversation(String conversationId) async {
+    if (!mounted || _openingConversationId == conversationId) return;
+    _openingConversationId = conversationId;
+    try {
+      final response = await MedilinkApi.instance.messagesList();
+      final raw = response['items'];
+      final rows = raw is List ? raw.whereType<Map>() : const <Map>[];
+      final match = rows.cast<Map?>().firstWhere(
+            (row) => row?['id']?.toString() == conversationId,
+            orElse: () => null,
+          );
+      final conversation = match == null
+          ? <String, dynamic>{
+              'id': conversationId,
+              'participantName': 'Conversation',
+              'lastMessage': '',
+              'messages': <Map<String, dynamic>>[],
+            }
+          : Map<String, dynamic>.from(match);
+      if (!mounted) return;
+      setState(() => selected = 3);
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ConversationScreen(
+            conversation: conversation,
+            doctor: widget.auth.role == 'doctor',
+          ),
+        ),
+      );
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ouverture de la conversation impossible : $exception')),
+        );
+      }
+    } finally {
+      _openingConversationId = null;
+    }
+  }
+
   void _onPushUpdate() {
     if (!mounted) return;
     setState(() {});
+    final conversationId =
+        PushNotificationService.instance.takePendingConversationId();
+    if (conversationId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openConversation(conversationId);
+      });
+    }
     final latest = PushNotificationService.instance.latestForegroundMessage;
     if (latest != null && latest != _lastHandledPush) {
       _lastHandledPush = latest;
