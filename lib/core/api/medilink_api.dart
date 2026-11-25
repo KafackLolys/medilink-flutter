@@ -26,6 +26,7 @@ class MedilinkApi {
   bool get isConfigured => _apiBaseUrl.trim().isNotEmpty;
   bool get isAuthenticated => _idToken?.isNotEmpty == true;
   String? get userId => _userId;
+  String? get idToken => _idToken;
 
   Future<void> setSession(Map<String, dynamic> session) async {
     _applySession(session);
