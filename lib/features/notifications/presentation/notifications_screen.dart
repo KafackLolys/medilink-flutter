@@ -67,8 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .notificationsList(page: page, pageSize: 20);
       final raw = response['items'];
       totalPages = (response['totalPages'] as num?)?.toInt() ?? 1;
-      _unreadCount =
-          (response['unreadCount'] as num?)?.toInt() ?? _unreadCount;
+      NotificationsScreen._unreadCount =
+          (response['unreadCount'] as num?)?.toInt() ?? NotificationsScreen._unreadCount;
       final rows = raw is List
           ? raw.whereType<Map>().map((row) {
               final item = Map<String, dynamic>.from(row);
@@ -104,7 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await MedilinkApi.instance.notificationsReadAll();
       if (mounted)
         setState(() {
-          _unreadCount = 0;
+          NotificationsScreen._unreadCount = 0;
           for (final row in LiveState.notifications) {
             row['isRead'] = true;
           }
@@ -123,7 +123,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         setState(() {
           row['isRead'] = true;
-          if (_unreadCount > 0) _unreadCount--;
+          if (NotificationsScreen._unreadCount > 0) NotificationsScreen._unreadCount--;
         });
       }
     } catch (exception) {
