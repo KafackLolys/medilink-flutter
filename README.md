@@ -18,9 +18,17 @@ flutter pub get
 
 ## Connexion à l'API v2
 
-Le client reçoit `API_BASE_URL` et `GOOGLE_CLIENT_ID` comme constantes de compilation avec `--dart-define-from-file=.env.json`. Ce fichier est l’unique source de configuration : modifiez-le pour changer les valeurs et conservez cette option à chaque lancement. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
+Le client reçoit `API_BASE_URL` et `GOOGLE_CLIENT_ID` comme constantes de compilation avec `--dart-define-from-file=.env.json`. Le fichier local `.env.json` n'est pas versionné : créez-le à partir du modèle suivi `.env.example.json` :
 
-La configuration debug BlueStacks et celle de VS Code passent toutes deux ce même fichier à Flutter.
+```powershell
+Copy-Item .env.example.json .env.json
+```
+
+Le modèle contient l'identifiant OAuth Web associé au projet Android Firebase `medilink-2027`, ainsi que les valeurs Firebase Web communes récupérées depuis la configuration Android. Pour activer Firebase Web/FCM, renseignez aussi `FIREBASE_WEB_APP_ID` et `FIREBASE_WEB_VAPID_KEY` depuis Firebase Console > Paramètres du projet > application Web / Cloud Messaging. Les cinq valeurs du service worker `web/firebase-messaging-sw.js` doivent provenir du même projet Firebase.
+
+Pour `API_BASE_URL` : utilisez `http://10.0.2.2:3000` depuis l'émulateur Android standard (accès au PC hôte), `http://localhost:3000` depuis Chrome sur le PC, ou l'adresse IPv4 locale du PC si BlueStacks ne route pas via `10.0.2.2`. N'utilisez pas `localhost` depuis Android pour joindre le backend du PC.
+
+La configuration debug BlueStacks et celle de VS Code passent toutes deux le fichier local `.env.json` à Flutter. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
 
 Sans API configurée ou joignable, la connexion, l’inscription et les actions serveur affichent une erreur. Les listes démarrent vides et sont alimentées par les réponses API. Consultez [BLUESTACKS.md](BLUESTACKS.md) pour le routage de l’API locale depuis BlueStacks.
 
@@ -52,3 +60,29 @@ Pour tester sur un appareil Android réel :
 5. Contrôlez que la réponse apparaît dans la messagerie et que le compteur de messages non lus diminue.
 
 Les actions rapides nécessitent une nouvelle compilation Android (elles reposent sur le manifeste et les composants natifs).
+
+
+## Notifications push : Flutter → API MediLink → Novu → FCM
+
+L'application Flutter utilise **Novu comme orchestrateur de notifications push**. Firebase Messaging reste nécessaire dans l'application pour obtenir le token FCM, recevoir les messages et les afficher ; l'envoi des notifications est déclenché côté serveur par Novu.
+
+- Après authentification, Flutter enregistre son token auprès de `POST /notifications/v2/devices` avec `pushProvider: "novu"`.
+- L'API déduit le `subscriberId` de l'identifiant Firebase de l'utilisateur connecté. Le client ne peut pas choisir le subscriber d'un autre utilisateur.
+- L'API synchronise les tokens des appareils Flutter avec le subscriber Novu, puis déclenche le workflow pour chaque notification.
+- Les secrets Novu ne sont **jamais** placés dans `.env.json`, `--dart-define` ou l'application.
+- Les autres clients Android qui utilisent le fournisseur Firebase direct conservent leur comportement : le backend sépare les appareils selon `pushProvider`.
+
+Configurer uniquement sur le backend `medilink-api` :
+
+```dotenv
+NOVU_API_BASE_URL=https://<origine-api-novu>
+NOVU_SECRET_KEY=<clé-api-secrète-de-l-environnement>
+NOVU_WORKFLOW_ID=<identifiant-du-workflow-push-medilink>
+NOVU_FCM_INTEGRATION_IDENTIFIER=
+```
+
+`NOVU_API_BASE_URL` doit être l'origine HTTPS de l'API Novu, pas l'URL du tableau de bord et sans suffixe `/v1`. L'identifiant FCM est facultatif s'il n'existe qu'une seule intégration FCM active.
+
+Dans Novu, activer l'intégration Firebase Cloud Messaging avec le compte de service du projet Firebase MediLink, puis créer un workflow Push utilisant au minimum `{{payload.title}}` et `{{payload.body}}`. Le payload expose aussi `notificationId`, `type`, `targetUrl` et les données métier telles que `conversationId`.
+
+Aucune variable Novu n'est requise côté Flutter. Les variables Firebase Web (`FIREBASE_WEB_APP_ID` et `FIREBASE_WEB_VAPID_KEY`) ne sont nécessaires que pour exécuter la variante Web ; elles ne remplacent pas l'intégration FCM Novu pour Android.

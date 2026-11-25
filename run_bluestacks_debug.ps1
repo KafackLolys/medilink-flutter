@@ -15,5 +15,12 @@ $env:ANDROID_HOME = $androidSdk
 $env:ANDROID_SDK_ROOT = $androidSdk
 Set-Location $PSScriptRoot
 
+$envFile = Join-Path $PSScriptRoot '.env.json'
+if (-not (Test-Path $envFile)) {
+  Copy-Item (Join-Path $PSScriptRoot '.env.example.json') $envFile
+  Write-Host 'Fichier .env.json créé depuis .env.example.json. Vérifiez API_BASE_URL avant le lancement.' -ForegroundColor Yellow
+}
+
+
 & $adb connect 127.0.0.1:5555
 & $flutterCommand.Source run -d emulator-5554 --dart-define-from-file=.env.json

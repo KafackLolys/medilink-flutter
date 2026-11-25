@@ -3,11 +3,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyCsleSpykstnt2hApXxvejXAJTqhUM3HO0',
-  authDomain: 'test-flutter-e5e37.firebaseapp.com',
-  projectId: 'test-flutter-e5e37',
-  messagingSenderId: '675953719483',
-  appId: '1:675953719483:web:405c9ce6a229fb0ad8519e',
+  apiKey: 'AIzaSyBKB0JkOOB94FreZlbLFnPl2gfzo1cFdx0',
+  authDomain: 'medilink-2027.firebaseapp.com',
+  projectId: 'medilink-2027',
+  messagingSenderId: '353233115193',
+  // Remplacer par l'App ID de l'application Web Firebase MediLink.
+  appId: 'REPLACE_WITH_MEDILINK_FIREBASE_WEB_APP_ID',
 });
 
 const messaging = firebase.messaging();
