@@ -314,6 +314,7 @@ class PushNotificationService extends ChangeNotifier {
 
   String? token;
   String? error;
+  RemoteMessage? latestForegroundMessage;
   String? _pendingConversationId;
   bool initialized = false;
   bool registeredWithBackend = false;
@@ -369,6 +370,7 @@ class PushNotificationService extends ChangeNotifier {
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
         _addMessage(message);
+        latestForegroundMessage = message;
         if (defaultTargetPlatform == TargetPlatform.android) {
           await _showRemoteNotification(message, _local);
         }
