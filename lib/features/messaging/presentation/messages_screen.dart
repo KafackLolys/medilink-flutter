@@ -19,11 +19,45 @@ class _MessagesScreenState extends State<MessagesScreen> {
   bool loading = false;
   bool hasApiResponse = false;
   String? apiError;
+  final messagingSocket = MessagingSocketService.instance;
+  void _onConversationUpdated(dynamic payload) {
+    if (!mounted || payload is! Map) return;
+    final data = Map<String, dynamic>.from(payload);
+    setState(() {
+      conversations = conversations.map((item) => item['id']?.toString() == data['conversationId']?.toString()
+          ? {...item, 'lastMessage': data['preview'] ?? item['lastMessage'], 'lastMessageAt': data['lastMessageAt'], 'unreadCount': data['unreadCount'] ?? item['unreadCount']}
+          : item).toList();
+    });
+  }
+  void _onConversationRead(dynamic payload) {
+    if (!mounted || payload is! Map) return;
+    final data = Map<String, dynamic>.from(payload);
+    if (data['readerUserId']?.toString() != MedilinkApi.instance.userId) return;
+    setState(() {
+      conversations = conversations.map((item) => item['id']?.toString() == data['conversationId']?.toString()
+          ? {...item, 'unreadCount': 0}
+          : item).toList();
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    if (MedilinkApi.instance.isConfigured) _load();
+    if (MedilinkApi.instance.isConfigured) {
+      _load();
+      _connectConversationEvents();
+    }
+  }
+
+  Future<void> _connectConversationEvents() async {
+    await messagingSocket.connect();
+    final socket = messagingSocket.socket;
+    if (socket == null) return;
+    socket.off('conversation:updated', _onConversationUpdated);
+    socket.off('conversation:read', _onConversationRead);
+    socket.on('conversation:updated', _onConversationUpdated);
+    socket.on('conversation:read', _onConversationRead);
+    socket.on('connect', (_) => _load());
   }
 
   Future<void> _load() async {
@@ -54,6 +88,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    final socket = messagingSocket.socket;
+    socket?.off('conversation:updated', _onConversationUpdated);
+    socket?.off('conversation:read', _onConversationRead);
+    super.dispose();
   }
 
   @override
