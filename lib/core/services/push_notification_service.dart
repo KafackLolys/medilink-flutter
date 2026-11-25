@@ -319,6 +319,7 @@ class PushNotificationService extends ChangeNotifier {
   String? error;
   RemoteMessage? latestForegroundMessage;
   String? _pendingConversationId;
+  Map<String, dynamic>? _pendingNotificationData;
   bool initialized = false;
   bool registeredWithBackend = false;
 
@@ -409,7 +410,7 @@ class PushNotificationService extends ChangeNotifier {
           final payload = _decodeNotificationPayload(
             launchDetails?.notificationResponse?.payload,
           );
-          _setPendingConversation(payload['conversationId']?.toString());
+          _setPendingNotification(payload);
         }
       }
 
@@ -428,18 +429,34 @@ class PushNotificationService extends ChangeNotifier {
       return;
     }
     final payload = _decodeNotificationPayload(response.payload);
-    _setPendingConversation(payload['conversationId']?.toString());
+    _setPendingNotification(payload);
   }
 
   void _handleRemoteMessageOpened(RemoteMessage message) {
     _addMessage(message);
-    _setPendingConversation(message.data['conversationId']?.toString());
+    _setPendingNotification(Map<String, dynamic>.from(message.data));
   }
 
-  void _setPendingConversation(String? conversationId) {
-    if (conversationId == null || conversationId.isEmpty) return;
+  void _setPendingNotification(Map<String, dynamic> data) {
+    final conversationId = data['conversationId']?.toString();
+    final targetUrl = (data['targetUrl'] ?? data['url'])?.toString();
+    if ((conversationId == null || conversationId.isEmpty) &&
+        (targetUrl == null || targetUrl.isEmpty)) {
+      return;
+    }
+    _pendingNotificationData = <String, dynamic>{
+      ...data,
+      if (targetUrl != null) 'targetUrl': targetUrl,
+    };
     _pendingConversationId = conversationId;
     notifyListeners();
+  }
+
+  Map<String, dynamic>? takePendingNotificationData() {
+    final value = _pendingNotificationData;
+    _pendingNotificationData = null;
+    _pendingConversationId = null;
+    return value;
   }
 
   String? takePendingConversationId() {
