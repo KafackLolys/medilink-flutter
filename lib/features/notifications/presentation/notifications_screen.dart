@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/api/medilink_api.dart';
 import '../../../core/data/live_state.dart';
+import '../../../core/services/push_notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   static int get unreadCount =>
-      LiveState.notifications.where((row) => row['isRead'] != true).length;
+      LiveState.notifications.where((row) => row['isRead'] != true).length +
+      PushNotificationService.instance.messages.length;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -23,10 +26,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    PushNotificationService.instance.addListener(_onPushChanged);
     if (MedilinkApi.instance.isConfigured) {
       LiveState.notifications.clear();
       _load();
     }
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.removeListener(_onPushChanged);
+    super.dispose();
+  }
+
+  void _onPushChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load({bool append = false}) async {
@@ -109,12 +123,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             children: [
+              _buildNovuCard(),
+              const SizedBox(height: 12),
+              _buildPushMessagesSection(),
               if (loading) const LinearProgressIndicator(),
               if (apiError != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Text('Chargement impossible : $apiError'),
                 ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(
+                  'Notifications du compte',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+              ),
               if (LiveState.notifications.isEmpty)
                 const Padding(
                     padding: EdgeInsets.all(48),
@@ -167,6 +191,237 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           color: AppTheme.textSecondary, fontSize: 12))),
             ]),
       );
+
+  Widget _buildNovuCard() {
+    final push = PushNotificationService.instance;
+    final isRegistered = push.registeredWithBackend;
+    final hasToken = push.token != null && push.token!.isNotEmpty;
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isRegistered ? const Color(0xffc2e7ff) : const Color(0xffe0e0e0),
+        ),
+      ),
+      color: isRegistered ? const Color(0xfff0f7ff) : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    LineAwesomeIcons.bell_solid,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Push Notifications · Novu',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        'Workflow : medilink-workflow',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isRegistered
+                        ? const Color(0xffe6f4ea)
+                        : const Color(0xfffef7e0),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isRegistered
+                            ? LineAwesomeIcons.check_circle_solid
+                            : LineAwesomeIcons.times_circle,
+                        size: 13,
+                        color: isRegistered
+                            ? const Color(0xff137333)
+                            : const Color(0xffb06000),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isRegistered ? 'Connecté' : (hasToken ? 'FCM Prêt' : 'En attente'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isRegistered
+                              ? const Color(0xff137333)
+                              : const Color(0xffb06000),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text(
+                  'Subscriber : ',
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                ),
+                Text(
+                  PushNotificationService.subscriberId,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (push.error != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                push.error!,
+                style: const TextStyle(color: Colors.red, fontSize: 11),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: push.triggeringTest
+                        ? null
+                        : () async {
+                            final success = await push.triggerTestPush();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    success
+                                        ? 'Notification envoyée avec succès via Novu (medilink-workflow) !'
+                                        : 'Échec de l\'envoi : ${push.error ?? "Erreur inconnue"}',
+                                  ),
+                                  backgroundColor: success
+                                      ? const Color(0xff137333)
+                                      : Colors.red.shade700,
+                                ),
+                              );
+                            }
+                          },
+                    icon: push.triggeringTest
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(LineAwesomeIcons.paper_plane_solid, size: 16),
+                    label: const Text('Tester le workflow Novu'),
+                  ),
+                ),
+                if (hasToken) ...[
+                  const SizedBox(width: 8),
+                  IconButton.outlined(
+                    tooltip: 'Copier le token FCM',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: push.token!));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Token FCM copié !')),
+                      );
+                    },
+                    icon: const Icon(Icons.copy, size: 18),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPushMessagesSection() {
+    final push = PushNotificationService.instance;
+    if (push.messages.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Push reçus en direct (${push.messages.length})',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() => push.messages.clear());
+              },
+              child: const Text('Effacer'),
+            ),
+          ],
+        ),
+        ...push.messages.map((message) {
+          final title = message.notification?.title ??
+              message.data['title']?.toString() ??
+              'Notification MedLink';
+          final body = message.notification?.body ??
+              message.data['body']?.toString() ??
+              '';
+          return Card(
+            color: const Color(0xffe8f0fe),
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: AppTheme.primary,
+                child: Icon(
+                  LineAwesomeIcons.bell_solid,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              title: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: body.isNotEmpty ? Text(body) : null,
+              trailing: const Icon(
+                LineAwesomeIcons.check_circle_solid,
+                size: 16,
+                color: AppTheme.primary,
+              ),
+            ),
+          );
+        }),
+        const Divider(height: 24),
+      ],
+    );
+  }
 
   IconData _icon(String? type) => switch (type) {
         'new_message' => LineAwesomeIcons.comment_dots_solid,

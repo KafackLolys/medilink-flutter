@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
+import '../../../core/services/push_notification_service.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../appointments/presentation/appointments_screen.dart';
 import '../../doctors/presentation/doctors_screen.dart';
@@ -13,6 +15,7 @@ import '../../doctor/presentation/doctor_workspace_screen.dart';
 import 'dashboard_screen.dart';
 import 'admin_accounts_screen.dart';
 import 'admin_profile_screen.dart';
+import '../../../core/widgets/medilink_logo_mark.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.auth});
@@ -25,6 +28,60 @@ class _HomeShellState extends State<HomeShell> {
   int selected = 0;
   int appointmentRefresh = 0;
   int needsRefresh = 0, proposalsRefresh = 0, messagesRefresh = 0;
+  RemoteMessage? _lastHandledPush;
+
+  @override
+  void initState() {
+    super.initState();
+    PushNotificationService.instance.addListener(_onPushUpdate);
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.removeListener(_onPushUpdate);
+    super.dispose();
+  }
+
+  void _onPushUpdate() {
+    if (!mounted) return;
+    setState(() {});
+    final latest = PushNotificationService.instance.latestForegroundMessage;
+    if (latest != null && latest != _lastHandledPush) {
+      _lastHandledPush = latest;
+      final title = latest.notification?.title ??
+          latest.data['title']?.toString() ??
+          'Notification MedLink';
+      final body = latest.notification?.body ??
+          latest.data['body']?.toString() ??
+          '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (body.isNotEmpty) Text(body),
+            ],
+          ),
+          action: SnackBarAction(
+            label: 'Voir',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen()),
+              );
+            },
+          ),
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.auth.role == 'admin') return _adminShell();
@@ -63,11 +120,7 @@ class _HomeShellState extends State<HomeShell> {
                 color: const Color(0xffe7f2fb),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.favorite,
-                color: Color(0xff1769aa),
-                size: 20,
-              ),
+              child: const MedilinkLogoMark(size: 20),
             ),
             const SizedBox(width: 10),
             const Text(
@@ -110,8 +163,11 @@ class _HomeShellState extends State<HomeShell> {
               if (mounted) setState(() {});
             },
             icon: Badge(
-              label: Text('${NotificationsScreen.unreadCount}'),
-              isLabelVisible: NotificationsScreen.unreadCount > 0,
+              label: Text(
+                  '${NotificationsScreen.unreadCount + PushNotificationService.instance.messages.length}'),
+              isLabelVisible: (NotificationsScreen.unreadCount +
+                      PushNotificationService.instance.messages.length) >
+                  0,
               child: const Icon(LineAwesomeIcons.bell_solid),
             ),
           ),
@@ -122,7 +178,9 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: IndexedStack(index: selected, children: pages),
+      body: _bodyWithStartupStatus(
+        IndexedStack(index: selected, children: pages),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
@@ -151,8 +209,12 @@ class _HomeShellState extends State<HomeShell> {
 
   Widget _adminShell() => Scaffold(
         appBar: AppBar(
-          title: const Text('MedLink · Administration',
-              style: TextStyle(fontWeight: FontWeight.w800)),
+          title: const Row(children: [
+            MedilinkLogoMark(size: 22),
+            SizedBox(width: 8),
+            Text('MedLink · Administration',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+          ]),
           actions: [
             IconButton(
                 tooltip: 'Notifications',
@@ -164,8 +226,11 @@ class _HomeShellState extends State<HomeShell> {
                   if (mounted) setState(() {});
                 },
                 icon: Badge(
-                    label: Text('${NotificationsScreen.unreadCount}'),
-                    isLabelVisible: NotificationsScreen.unreadCount > 0,
+                    label: Text(
+                        '${NotificationsScreen.unreadCount + PushNotificationService.instance.messages.length}'),
+                    isLabelVisible: (NotificationsScreen.unreadCount +
+                            PushNotificationService.instance.messages.length) >
+                        0,
                     child: const Icon(LineAwesomeIcons.bell_solid))),
             IconButton(
                 tooltip: 'Déconnexion',
@@ -173,10 +238,12 @@ class _HomeShellState extends State<HomeShell> {
                 icon: const Icon(LineAwesomeIcons.sign_out_alt_solid)),
           ],
         ),
-        body: IndexedStack(index: selected.clamp(0, 1), children: [
-          AdminAccountsScreen(auth: widget.auth),
-          AdminProfileScreen(auth: widget.auth)
-        ]),
+        body: _bodyWithStartupStatus(
+          IndexedStack(index: selected.clamp(0, 1), children: [
+            AdminAccountsScreen(auth: widget.auth),
+            AdminProfileScreen(auth: widget.auth)
+          ]),
+        ),
         bottomNavigationBar: NavigationBar(
             selectedIndex: selected.clamp(0, 1),
             onDestinationSelected: (v) => setState(() => selected = v),
@@ -186,6 +253,28 @@ class _HomeShellState extends State<HomeShell> {
               NavigationDestination(
                   icon: Icon(Icons.person_outline), label: 'Mon profil')
             ]),
+      );
+
+  Widget _bodyWithStartupStatus(Widget child) => Column(
+        children: [
+          if (widget.auth.startupError != null)
+            MaterialBanner(
+              backgroundColor: const Color(0xfffff4e5),
+              leading: const Icon(Icons.cloud_off, color: Color(0xff9a5b00)),
+              content: Text(widget.auth.startupError!),
+              actions: [
+                TextButton(
+                  onPressed: widget.auth.checkingBackend
+                      ? null
+                      : widget.auth.retryBackendConnection,
+                  child: Text(widget.auth.checkingBackend
+                      ? 'Vérification…'
+                      : 'Réessayer'),
+                ),
+              ],
+            ),
+          Expanded(child: child),
+        ],
       );
 
   void _showAppointments() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/data/live_state.dart';
+import '../../../core/widgets/medilink_logo_mark.dart';
 
 import '../application/auth_controller.dart';
 
@@ -45,10 +46,9 @@ class _LoginState extends State<LoginScreen> {
       await widget.auth.register(data);
       if (mounted && widget.auth.error == null) {
         setState(() => registering = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(
-                content: Text(
-                    'Compte créé. Confirmez votre e-mail avant de vous connecter.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Compte créé. Confirmez votre e-mail avant de vous connecter.')));
       }
     } else {
       final emailValue = email.text.trim();
@@ -128,11 +128,7 @@ class _LoginState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.favorite,
-                      size: 34,
-                      color: Color(0xff1769aa),
-                    ),
+                    const MedilinkLogoMark(),
                     const SizedBox(height: 16),
                     Text(
                       'MedLink',

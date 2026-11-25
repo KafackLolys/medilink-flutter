@@ -6,4 +6,4 @@ build/
 .flutter-plugins-dependencies
 *.iml
 .idea/
-.env
+.env.*

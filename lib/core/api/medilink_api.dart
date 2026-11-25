@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_environment.dart';
 
@@ -10,6 +12,10 @@ class MedilinkApi {
 
   static final MedilinkApi instance = MedilinkApi._();
   static String get _apiBaseUrl => AppEnvironment.apiBaseUrl.trim();
+  static const String _sessionStorageKey = 'medilink_auth_session';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   final http.Client _http = http.Client();
   String? _idToken;
@@ -21,11 +27,63 @@ class MedilinkApi {
   bool get isAuthenticated => _idToken?.isNotEmpty == true;
   String? get userId => _userId;
 
-  void setSession(Map<String, dynamic> session) {
+  Future<void> setSession(Map<String, dynamic> session) async {
+    _applySession(session);
+    await _persistSession(session);
+  }
+
+  void _applySession(Map<String, dynamic> session) {
     _idToken = session['idToken']?.toString();
     _refreshToken = session['refreshToken']?.toString();
     final user = session['user'];
     _userId = user is Map ? user['id']?.toString() : null;
+  }
+
+  Future<Map<String, dynamic>?> restoreSession() async {
+    final saved = await _secureStorage.read(key: _sessionStorageKey);
+    if (saved == null || saved.isEmpty) return null;
+
+    try {
+      final decoded = jsonDecode(saved);
+      if (decoded is! Map) return null;
+      final session = Map<String, dynamic>.from(decoded);
+      final user = session['user'];
+      if (session['idToken']?.toString().isNotEmpty != true ||
+          user is! Map ||
+          user['id'] == null) {
+        await clearSession();
+        return null;
+      }
+      _applySession(session);
+      return session;
+    } on FormatException {
+      await clearSession();
+      return null;
+    }
+  }
+
+  Future<void> _persistSession(Map<String, dynamic> session) async {
+    try {
+      await _secureStorage.write(
+        key: _sessionStorageKey,
+        value: jsonEncode(session),
+      );
+    } catch (_) {
+      throw const MedilinkApiException(
+        'Impossible de conserver la session de façon sécurisée sur cet appareil.',
+      );
+    }
+  }
+
+  Future<void> clearSession() async {
+    _idToken = null;
+    _refreshToken = null;
+    _userId = null;
+    try {
+      await _secureStorage.delete(key: _sessionStorageKey);
+    } catch (_) {
+      // Always clear the in-memory session, even when secure storage fails.
+    }
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async =>
@@ -47,9 +105,7 @@ class MedilinkApi {
     try {
       if (isAuthenticated) await post('auth/v2/logout', const {});
     } finally {
-      _idToken = null;
-      _refreshToken = null;
-      _userId = null;
+      await clearSession();
     }
   }
 
@@ -113,7 +169,9 @@ class MedilinkApi {
     request.fields.addAll(fields);
     request.files.addAll(files);
     try {
-      final streamed = await _http.send(request);
+      final streamed = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 15));
       return _decode(
           streamed.statusCode, await streamed.stream.bytesToString());
     } on http.ClientException {
@@ -141,7 +199,9 @@ class MedilinkApi {
     try {
       final request = http.Request(method, uri)..headers.addAll(headers);
       if (method != 'GET' && body != null) request.body = jsonEncode(body);
-      final streamed = await _http.send(request);
+      final streamed = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 15));
       final response = await http.Response.fromStream(streamed);
       if (response.statusCode == 401 &&
           authenticated &&
@@ -156,7 +216,7 @@ class MedilinkApi {
             authenticated: false,
             retryOnUnauthorized: false,
           ));
-          setSession(refreshed);
+          await setSession(refreshed);
           return await _send(
             method,
             path,
@@ -165,10 +225,9 @@ class MedilinkApi {
             authenticated: authenticated,
             retryOnUnauthorized: false,
           );
-        } on MedilinkApiException {
-          _idToken = null;
-          _refreshToken = null;
-          _userId = null;
+        } on MedilinkApiException catch (exception) {
+          if (![400, 401, 403].contains(exception.statusCode)) rethrow;
+          await clearSession();
           onSessionExpired?.call();
           throw const MedilinkApiException(
             'Session expirée. Veuillez vous reconnecter.',
@@ -176,7 +235,19 @@ class MedilinkApi {
           );
         }
       }
+      if (response.statusCode == 401 && authenticated) {
+        await clearSession();
+        onSessionExpired?.call();
+        throw const MedilinkApiException(
+          'Session expirée. Veuillez vous reconnecter.',
+          statusCode: 401,
+        );
+      }
       return _decode(response.statusCode, response.body);
+    } on TimeoutException {
+      throw const MedilinkApiException(
+        'Le serveur MedLink ne répond pas. Vérifiez sa disponibilité et réessayez.',
+      );
     } on http.ClientException {
       throw const MedilinkApiException(
         'Connexion API impossible. Vérifiez l’adresse API et le réseau.',

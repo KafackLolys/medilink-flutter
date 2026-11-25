@@ -17,9 +17,9 @@ flutter pub get
 
 ## Connexion à l'API v2
 
-Le client charge `API_BASE_URL` et `GOOGLE_CLIENT_ID` au démarrage depuis l’unique fichier de configuration `.env.json`, déclaré comme asset Flutter. Modifiez ce fichier pour changer les valeurs. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
+Le client reçoit `API_BASE_URL` et `GOOGLE_CLIENT_ID` comme constantes de compilation avec `--dart-define-from-file=.env.json`. Ce fichier est l’unique source de configuration : modifiez-le pour changer les valeurs et conservez cette option à chaque lancement. Une session ne peut être ouverte que si le serveur renvoie un jeton valide et un compte utilisateur :
 
-La configuration debug BlueStacks et celle de VS Code utilisent ce même fichier sans option `--dart-define`.
+La configuration debug BlueStacks et celle de VS Code passent toutes deux ce même fichier à Flutter.
 
 Sans API configurée ou joignable, la connexion, l’inscription et les actions serveur affichent une erreur. Les listes démarrent vides et sont alimentées par les réponses API. Consultez [BLUESTACKS.md](BLUESTACKS.md) pour le routage de l’API locale depuis BlueStacks.
 

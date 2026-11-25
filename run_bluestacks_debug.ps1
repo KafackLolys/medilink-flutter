@@ -16,4 +16,4 @@ $env:ANDROID_SDK_ROOT = $androidSdk
 Set-Location $PSScriptRoot
 
 & $adb connect 127.0.0.1:5555
-& $flutterCommand.Source run -d emulator-5554
+& $flutterCommand.Source run -d emulator-5554 --dart-define-from-file=.env.json

@@ -4,6 +4,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/home/presentation/home_shell.dart';
+import 'core/widgets/medilink_logo_mark.dart';
 
 class MedLinkApp extends StatelessWidget {
   const MedLinkApp({super.key, required this.auth});
@@ -18,8 +19,30 @@ class MedLinkApp extends StatelessWidget {
         title: 'MedLink',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
-        home: auth.signedIn ? HomeShell(auth: auth) : LoginScreen(auth: auth),
+        home: auth.initializing
+            ? const _SessionLoadingScreen()
+            : auth.signedIn
+                ? HomeShell(auth: auth)
+                : LoginScreen(auth: auth),
       ),
     );
   }
+}
+
+class _SessionLoadingScreen extends StatelessWidget {
+  const _SessionLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MedilinkLogoMark(size: 40),
+              SizedBox(height: 20),
+              CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
 }

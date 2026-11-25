@@ -13,7 +13,10 @@ class AuthController extends ChangeNotifier {
 
   Map<String, dynamic>? _session;
   bool busy = false;
+  bool initializing = true;
+  bool checkingBackend = false;
   String? error;
+  String? startupError;
   Map<String, dynamic>? get user => _session?['user'] as Map<String, dynamic>?;
   bool get signedIn => user != null;
   bool get usesApi => MedilinkApi.instance.isConfigured;
@@ -21,12 +24,75 @@ class AuthController extends ChangeNotifier {
   String get name =>
       '${user?['firstName'] ?? ''} ${user?['lastName'] ?? ''}'.trim();
 
-  void updateUserProfile(Map<String, dynamic> updatedUser) {
+  Future<void> initialize() async {
+    try {
+      final restored = await MedilinkApi.instance.restoreSession();
+      if (restored == null) return;
+      _session = restored;
+      await retryBackendConnection(notify: false);
+    } catch (_) {
+      _session = null;
+    } finally {
+      initializing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> retryBackendConnection({bool notify = true}) async {
+    if (_session == null) return;
+    checkingBackend = true;
+    startupError = null;
+    if (notify) notifyListeners();
+    try {
+      final response = await MedilinkApi.instance.profile();
+      final profileUser = response['user'];
+      if (profileUser is Map && _session != null) {
+        _session = {
+          ..._session!,
+          'user': Map<String, dynamic>.from(profileUser),
+        };
+        await MedilinkApi.instance.setSession(_session!);
+      }
+    } catch (exception) {
+      if (_session != null) startupError = _formatStartupError(exception);
+      if (exception is MedilinkApiException && exception.statusCode == 401) {
+        error = 'Votre session a expiré. Connectez-vous à nouveau.';
+      }
+    } finally {
+      checkingBackend = false;
+      if (notify) notifyListeners();
+    }
+  }
+
+  String _formatStartupError(Object exception) {
+    if (!MedilinkApi.instance.isConfigured) {
+      return 'Le serveur MedLink n’est pas configuré. Vérifiez API_BASE_URL dans .env.json.';
+    }
+    if (exception is MedilinkApiException) {
+      final status = exception.statusCode;
+      if (status != null && status >= 500) {
+        return 'Le serveur MedLink est momentanément indisponible. Réessayez dans quelques instants.';
+      }
+      if (status == 403) {
+        return 'Le serveur a refusé l’accès à ce compte. Vérifiez son statut et ses autorisations.';
+      }
+      if (status == 401) {
+        return 'Votre session a expiré. Connectez-vous à nouveau.';
+      }
+      if (status == null) {
+        return 'Impossible de joindre le serveur MedLink. Vérifiez le démarrage du backend et la connexion réseau.';
+      }
+    }
+    return 'La connexion au serveur MedLink a échoué. Réessayez dans quelques instants.';
+  }
+
+  Future<void> updateUserProfile(Map<String, dynamic> updatedUser) async {
     if (_session == null) return;
     _session = {
       ..._session!,
       'user': {...?user, ...updatedUser}
     };
+    await MedilinkApi.instance.setSession(_session!);
     notifyListeners();
   }
 
@@ -60,7 +126,8 @@ class AuthController extends ChangeNotifier {
         );
       }
       _session = session;
-      MedilinkApi.instance.setSession(_session!);
+      await MedilinkApi.instance.setSession(_session!);
+      startupError = null;
     } catch (exception) {
       _session = null;
       await MedilinkApi.instance.logout();
@@ -154,7 +221,7 @@ class AuthController extends ChangeNotifier {
       // Complète la connexion ou l’inscription Google via l’API v2.
       final session = await MedilinkApi.instance.googleComplete(idToken, role);
       _session = session;
-      MedilinkApi.instance.setSession(session);
+      await MedilinkApi.instance.setSession(session);
     } catch (exception) {
       error = exception is PlatformException &&
               exception.code == 'sign_in_failed' &&
@@ -195,6 +262,8 @@ class AuthController extends ChangeNotifier {
       // Clear the local session even if revocation cannot reach the API.
     }
     _session = null;
+    startupError = null;
+    error = null;
     LiveState.clearSession();
     notifyListeners();
   }

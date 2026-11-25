@@ -22,14 +22,14 @@ MedLink n’accepte plus de compte local et n’affiche plus d’enregistrements
 
 `10.0.2.2` désigne le PC hôte depuis l’émulateur Android. Si ce routage n’est pas disponible dans votre installation BlueStacks, remplacez cette adresse par l’adresse IPv4 du PC sur le réseau local. Le backend doit écouter sur une interface accessible et le pare-feu Windows doit autoriser son port.
 
-Vous pouvez aussi lancer la configuration **MedLink · BlueStacks debug** depuis VS Code. L’application charge ses paramètres depuis l’asset `.env.json` au démarrage.
+Vous pouvez aussi lancer la configuration **MedLink · BlueStacks debug** depuis VS Code. Elle passe `.env.json` à Flutter avec `--dart-define-from-file`.
 
 ## Pointer vers une API locale
 
-Pour une autre adresse de serveur, modifiez `API_BASE_URL` dans `.env.json`. Dans l’application, `localhost` et `127.0.0.1` désignent BlueStacks lui-même : ne les utilisez pas pour joindre le serveur du PC.
+Pour une autre adresse de serveur, modifiez `API_BASE_URL` dans `.env.json` et gardez l’option `--dart-define-from-file=.env.json`. Dans l’application, `localhost` et `127.0.0.1` désignent BlueStacks lui-même : ne les utilisez pas pour joindre le serveur du PC.
 
 ```powershell
-flutter run -d <identifiant-appareil>
+flutter run -d <identifiant-appareil> --dart-define-from-file=.env.json
 ```
 exemple: ```flutter run -d emulator-5554 --dart-define-from-file=.env.json```
 
