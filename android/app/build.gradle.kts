@@ -7,7 +7,8 @@ plugins {
 
 android {
     namespace = "com.lolys.medilink"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_local_notifications 23.0.4 requires Android API 37 to compile.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
 import '../../../core/api/medilink_api.dart';
@@ -10,9 +9,27 @@ import '../../../core/theme/app_theme.dart';
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
-  static int get unreadCount =>
-      LiveState.notifications.where((row) => row['isRead'] != true).length +
-      PushNotificationService.instance.messages.length;
+  static int _unreadCount = 0;
+  static int get unreadCount => _unreadCount;
+
+  /// Rafraîchit le compteur global depuis le serveur, y compris après une
+  /// action exécutée depuis une notification Android en arrière-plan.
+  static Future<void> refreshUnreadCount() async {
+    if (!MedilinkApi.instance.isConfigured ||
+        !MedilinkApi.instance.isAuthenticated) {
+      return;
+    }
+    try {
+      final response = await MedilinkApi.instance.notificationsList(
+        page: 1,
+        pageSize: 1,
+      );
+      _unreadCount =
+          (response['unreadCount'] as num?)?.toInt() ?? _unreadCount;
+    } catch (_) {
+      // Keep the last known count while offline.
+    }
+  }
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -50,6 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .notificationsList(page: page, pageSize: 20);
       final raw = response['items'];
       totalPages = (response['totalPages'] as num?)?.toInt() ?? 1;
+      NotificationsScreen._unreadCount =
+          (response['unreadCount'] as num?)?.toInt() ?? NotificationsScreen._unreadCount;
       final rows = raw is List
           ? raw.whereType<Map>().map((row) {
               final item = Map<String, dynamic>.from(row);
@@ -85,6 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await MedilinkApi.instance.notificationsReadAll();
       if (mounted)
         setState(() {
+          NotificationsScreen._unreadCount = 0;
           for (final row in LiveState.notifications) {
             row['isRead'] = true;
           }
@@ -100,7 +120,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (row['isRead'] == true) return;
     try {
       await MedilinkApi.instance.notificationRead(row['id'].toString());
-      if (mounted) setState(() => row['isRead'] = true);
+      if (mounted) {
+        setState(() {
+          row['isRead'] = true;
+          if (NotificationsScreen._unreadCount > 0) NotificationsScreen._unreadCount--;
+        });
+      }
     } catch (exception) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Notification non mise à jour : $exception')),
@@ -195,13 +220,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget _buildNovuCard() {
     final push = PushNotificationService.instance;
     final isRegistered = push.registeredWithBackend;
-    final hasToken = push.token != null && push.token!.isNotEmpty;
+    final hasToken = push.token?.isNotEmpty == true;
 
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isRegistered ? const Color(0xffc2e7ff) : const Color(0xffe0e0e0),
+          color: isRegistered
+              ? const Color(0xffc2e7ff)
+              : const Color(0xffe0e0e0),
         ),
       ),
       color: isRegistered ? const Color(0xfff0f7ff) : Colors.white,
@@ -230,14 +257,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Push Notifications · Novu',
+                        'Notifications push',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
                         ),
                       ),
                       Text(
-                        'Workflow : medilink-workflow',
+                        'Firebase Cloud Messaging · MediLink',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.textSecondary,
@@ -255,108 +282,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         : const Color(0xfffef7e0),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isRegistered
-                            ? LineAwesomeIcons.check_circle_solid
-                            : LineAwesomeIcons.times_circle,
-                        size: 13,
-                        color: isRegistered
-                            ? const Color(0xff137333)
-                            : const Color(0xffb06000),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isRegistered ? 'Connecté' : (hasToken ? 'FCM Prêt' : 'En attente'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isRegistered
-                              ? const Color(0xff137333)
-                              : const Color(0xffb06000),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text(
-                  'Subscriber : ',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                ),
-                Text(
-                  PushNotificationService.subscriberId,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                  child: Text(
+                    isRegistered
+                        ? 'Connecté'
+                        : (hasToken ? 'À enregistrer' : 'En attente'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isRegistered
+                          ? const Color(0xff137333)
+                          : const Color(0xffb06000),
+                    ),
                   ),
                 ),
               ],
             ),
             if (push.error != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 push.error!,
                 style: const TextStyle(color: Colors.red, fontSize: 11),
               ),
             ],
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: push.triggeringTest
-                        ? null
-                        : () async {
-                            final success = await push.triggerTestPush();
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    success
-                                        ? 'Notification envoyée avec succès via Novu (medilink-workflow) !'
-                                        : 'Échec de l\'envoi : ${push.error ?? "Erreur inconnue"}',
-                                  ),
-                                  backgroundColor: success
-                                      ? const Color(0xff137333)
-                                      : Colors.red.shade700,
-                                ),
-                              );
-                            }
-                          },
-                    icon: push.triggeringTest
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(LineAwesomeIcons.paper_plane_solid, size: 16),
-                    label: const Text('Tester le workflow Novu'),
-                  ),
-                ),
-                if (hasToken) ...[
-                  const SizedBox(width: 8),
-                  IconButton.outlined(
-                    tooltip: 'Copier le token FCM',
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: push.token!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Token FCM copié !')),
-                      );
-                    },
-                    icon: const Icon(Icons.copy, size: 18),
-                  ),
-                ],
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: isRegistered ? null : push.retryRegistration,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Réessayer l’enregistrement'),
+              ),
             ),
           ],
         ),

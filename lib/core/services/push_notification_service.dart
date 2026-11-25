@@ -1,44 +1,304 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-/// Handler exécuté en arrière-plan sous Android dans un Isolate séparé.
+import '../api/medilink_api.dart';
+import '../config/app_environment.dart';
+
+const _notificationChannel = AndroidNotificationChannel(
+  'medilink_notifications',
+  'Notifications MedLink',
+  description: 'Messages et notifications de votre compte MedLink',
+  importance: Importance.high,
+);
+
+const _secureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
+
+const _sessionStorageKey = 'medilink_auth_session';
+const _deviceStorageKey = 'medilink_notification_device_id';
+
+/// Affiche les messages data-only reçus lorsque Android exécute l'application
+/// dans un isolate de fond.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 
-  // Si le message est "data-only", afficher manuellement la notification locale.
-  if (message.notification == null && message.data.isNotEmpty) {
-    final title = message.data['title']?.toString() ?? 'Notification MedLink';
-    final body = message.data['body']?.toString() ?? '';
-    final local = FlutterLocalNotificationsPlugin();
-    await local.initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      ),
-    );
-    await local.show(
-      message.messageId?.hashCode ??
-          DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'medilink_notifications',
-          'Notifications MedLink',
-          channelDescription:
-              'Notifications envoyées depuis Novu et Firebase FCM',
-          importance: Importance.high,
-          priority: Priority.high,
+  if (defaultTargetPlatform != TargetPlatform.android) return;
+
+  final local = FlutterLocalNotificationsPlugin();
+  await _initializeLocalNotifications(
+    local,
+    onResponse: notificationTapForeground,
+    onBackgroundResponse: notificationActionBackgroundHandler,
+  );
+  await _showRemoteNotification(message, local);
+}
+
+Future<void> _initializeLocalNotifications(
+  FlutterLocalNotificationsPlugin plugin, {
+  required void Function(NotificationResponse) onResponse,
+  required void Function(NotificationResponse) onBackgroundResponse,
+}) async {
+  await plugin.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    ),
+    onDidReceiveNotificationResponse: onResponse,
+    onDidReceiveBackgroundNotificationResponse: onBackgroundResponse,
+  );
+
+  final android = plugin.resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>();
+  await android?.createNotificationChannel(_notificationChannel);
+}
+
+int _stableNotificationId(String value) {
+  var hash = 0x811c9dc5;
+  for (final byte in utf8.encode(value)) {
+    hash ^= byte;
+    hash = (hash * 0x01000193) & 0x7fffffff;
+  }
+  return hash == 0 ? 1 : hash;
+}
+
+Future<void> _showRemoteNotification(
+  RemoteMessage message,
+  FlutterLocalNotificationsPlugin plugin,
+) async {
+  final data = Map<String, dynamic>.from(message.data);
+  final title = message.notification?.title ??
+      data['title']?.toString() ??
+      'Notification MedLink';
+  final body = message.notification?.body ?? data['body']?.toString() ?? '';
+  final conversationId = data['conversationId']?.toString();
+  final isChat = data['type']?.toString() == 'new_message' &&
+      conversationId != null &&
+      conversationId.isNotEmpty;
+
+  final payload = <String, dynamic>{
+    ...data,
+    'title': title,
+    'body': body,
+  };
+  final notificationId = isChat
+      ? _stableNotificationId('conversation:$conversationId')
+      : (message.messageId?.hashCode ??
+          DateTime.now().millisecondsSinceEpoch ~/ 1000);
+
+  final actions = isChat
+      ? <AndroidNotificationAction>[
+          const AndroidNotificationAction(
+            'reply',
+            'Répondre',
+            inputs: <AndroidNotificationActionInput>[
+              AndroidNotificationActionInput(label: 'Votre réponse'),
+            ],
+            showsUserInterface: false,
+            cancelNotification: false,
+            semanticAction: SemanticAction.reply,
+          ),
+          const AndroidNotificationAction(
+            'mark_read',
+            'Marquer comme lu',
+            showsUserInterface: false,
+            cancelNotification: false,
+            semanticAction: SemanticAction.markAsRead,
+          ),
+          const AndroidNotificationAction(
+            'open',
+            'Ouvrir',
+            showsUserInterface: true,
+            cancelNotification: true,
+          ),
+        ]
+      : const <AndroidNotificationAction>[];
+
+  await plugin.show(
+    id: notificationId,
+    title: title,
+    body: body,
+    payload: jsonEncode(payload),
+    notificationDetails: NotificationDetails(
+      android: AndroidNotificationDetails(
+        _notificationChannel.id,
+        _notificationChannel.name,
+        channelDescription: _notificationChannel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        category: isChat ? AndroidNotificationCategory.message : null,
+        visibility: NotificationVisibility.private,
+        onlyAlertOnce: true,
+        styleInformation: BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: isChat ? 'Message MediLink' : 'MediLink',
         ),
+        actions: actions,
       ),
-    );
+    ),
+  );
+}
+
+Map<String, dynamic> _decodeNotificationPayload(String? raw) {
+  if (raw == null || raw.isEmpty) return <String, dynamic>{};
+  try {
+    final decoded = jsonDecode(raw);
+    return decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+  } on FormatException {
+    return <String, dynamic>{};
+  }
+}
+
+/// Traite les actions sans ouvrir l'interface, même si l'application est
+/// arrêtée. Le jeton Firebase est relu depuis le stockage sécurisé.
+@pragma('vm:entry-point')
+void notificationActionBackgroundHandler(NotificationResponse response) {
+  unawaited(_handleNotificationActionInBackground(response));
+}
+
+Future<http.Response> _authenticatedActionRequest({
+  required String method,
+  required String path,
+  Object? body,
+}) async {
+  final base = AppEnvironment.apiBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+  if (base.isEmpty) throw StateError('API_BASE_URL non configurée.');
+
+  final saved = await _secureStorage.read(key: _sessionStorageKey);
+  if (saved == null || saved.isEmpty) {
+    throw StateError('Aucune session MediLink disponible.');
+  }
+
+  final decoded = jsonDecode(saved);
+  if (decoded is! Map) throw StateError('Session MediLink invalide.');
+  final session = Map<String, dynamic>.from(decoded);
+  var idToken = session['idToken']?.toString() ?? '';
+  final refreshToken = session['refreshToken']?.toString() ?? '';
+  if (idToken.isEmpty) throw StateError('Jeton de session indisponible.');
+
+  Future<http.Response> send(String token) {
+    final uri = Uri.parse('$base/$path');
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    final encodedBody = body == null ? null : jsonEncode(body);
+    return switch (method) {
+      'POST' => http
+          .post(uri, headers: headers, body: encodedBody)
+          .timeout(const Duration(seconds: 12)),
+      'PATCH' => http
+          .patch(uri, headers: headers, body: encodedBody)
+          .timeout(const Duration(seconds: 12)),
+      _ => throw ArgumentError.value(method, 'method'),
+    };
+  }
+
+  var response = await send(idToken);
+  if (response.statusCode != 401 || refreshToken.isEmpty) return response;
+
+  final refreshResponse = await http
+      .post(
+        Uri.parse('$base/auth/v2/refresh'),
+        headers: const {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'refreshToken': refreshToken}),
+      )
+      .timeout(const Duration(seconds: 12));
+
+  if (refreshResponse.statusCode < 200 ||
+      refreshResponse.statusCode >= 300) {
+    return response;
+  }
+
+  final refreshBody = jsonDecode(refreshResponse.body);
+  if (refreshBody is! Map) return response;
+  session.addAll(Map<String, dynamic>.from(refreshBody));
+  idToken = session['idToken']?.toString() ?? '';
+  if (idToken.isEmpty) return response;
+
+  await _secureStorage.write(
+    key: _sessionStorageKey,
+    value: jsonEncode(session),
+  );
+  response = await send(idToken);
+  return response;
+}
+
+Future<void> _handleNotificationActionInBackground(
+  NotificationResponse response,
+) async {
+  final payload = _decodeNotificationPayload(response.payload);
+  final conversationId = payload['conversationId']?.toString();
+  final notificationId = payload['notificationId']?.toString();
+  final actionId = response.actionId;
+
+  if (conversationId == null || conversationId.isEmpty) return;
+
+  try {
+    if (actionId == 'reply') {
+      final reply = response.input?.trim() ?? '';
+      if (reply.isEmpty || reply.length > 4000) return;
+
+      final sent = await _authenticatedActionRequest(
+        method: 'POST',
+        path:
+            'messages/v2/conversations/${Uri.encodeComponent(conversationId)}',
+        body: {'body': reply},
+      );
+      if (sent.statusCode < 200 || sent.statusCode >= 300) return;
+
+      await _authenticatedActionRequest(
+        method: 'PATCH',
+        path:
+            'messages/v2/conversations/${Uri.encodeComponent(conversationId)}/read',
+        body: const {},
+      );
+    } else if (actionId == 'mark_read') {
+      final marked = await _authenticatedActionRequest(
+        method: 'PATCH',
+        path:
+            'messages/v2/conversations/${Uri.encodeComponent(conversationId)}/read',
+        body: const {},
+      );
+      if (marked.statusCode < 200 || marked.statusCode >= 300) return;
+    } else {
+      return;
+    }
+
+    if (notificationId != null && notificationId.isNotEmpty) {
+      await _authenticatedActionRequest(
+        method: 'PATCH',
+        path:
+            'notifications/v2/${Uri.encodeComponent(notificationId)}/read',
+        body: const {},
+      );
+    }
+
+    final local = FlutterLocalNotificationsPlugin();
+    final localNotificationId =
+        response.id ?? _stableNotificationId('conversation:$conversationId');
+    await local.cancel(id: localNotificationId);
+    PushNotificationService.instance.notificationActionCompleted();
+  } catch (_) {
+    // Keep the notification visible when the server action could not be
+    // completed. The user can retry or open the conversation in MediLink.
   }
 }
 
@@ -46,78 +306,23 @@ class PushNotificationService extends ChangeNotifier {
   PushNotificationService._();
   static final instance = PushNotificationService._();
 
-  static const channel = AndroidNotificationChannel(
-    'medilink_notifications',
-    'Notifications MedLink',
-    description: 'Notifications envoyées depuis Novu et Firebase FCM',
-    importance: Importance.high,
-  );
-
   FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
   final List<RemoteMessage> messages = [];
-  RemoteMessage? latestForegroundMessage;
+
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
   StreamSubscription<String>? _tokenSubscription;
 
   String? token;
   String? error;
+  RemoteMessage? latestForegroundMessage;
+  String? _pendingConversationId;
   bool initialized = false;
   bool registeredWithBackend = false;
-  bool triggeringTest = false;
 
-  // Clés configurées via .env ou --dart-define
-  static String get registerEndpoint =>
-      dotenv.env['PUSH_REGISTER_URL']?.trim() ??
-      const String.fromEnvironment(
-        'PUSH_REGISTER_URL',
-        defaultValue: 'https://all-test-backend.vercel.app/push/register',
-      );
-
-  static String get subscriberId =>
-      dotenv.env['NOVU_SUBSCRIBER_ID']?.trim() ??
-      const String.fromEnvironment(
-        'NOVU_SUBSCRIBER_ID',
-        defaultValue: 'flutter-test-001',
-      );
-
-  static String get workflowId =>
-      dotenv.env['NOVU_WORKFLOW_ID']?.trim() ??
-      const String.fromEnvironment(
-        'NOVU_WORKFLOW_ID',
-        defaultValue: 'medilink-workflow',
-      );
-
-  static String get novuApiBaseUrl =>
-      dotenv.env['NOVU_API_BASE_URL']?.trim() ??
-      const String.fromEnvironment(
-        'NOVU_API_BASE_URL',
-        defaultValue: 'https://notify.zenithis.tech/api',
-      );
-
-  static String get novuSecretKey =>
-      dotenv.env['NOVU_SECRET_KEY']?.trim() ??
-      const String.fromEnvironment(
-        'NOVU_SECRET_KEY',
-        defaultValue: '937fe808b2a874b5d43fbec994e35f1e',
-      );
-
-  static String get novuIntegrationIdentifier =>
-      dotenv.env['NOVU_FCM_INTEGRATION_IDENTIFIER']?.trim() ??
-      const String.fromEnvironment(
-        'NOVU_FCM_INTEGRATION_IDENTIFIER',
-        defaultValue: 'firebase-cloud-messaging-medilink',
-      );
-
-  static String get webVapidKey =>
-      dotenv.env['FIREBASE_WEB_VAPID_KEY']?.trim() ??
-      const String.fromEnvironment(
-        'FIREBASE_WEB_VAPID_KEY',
-        defaultValue:
-            'BMmSSkAMG94WpXsMbfbWM_ST2L46xx-AgPxnoc-9jGUJa-bwlyNtYVQehmDr5y4GbK4QwYaRcNCDOTJdADmwNo0',
-      );
+  String get webVapidKey => AppEnvironment.firebaseWebVapidKey;
 
   void configurationError(String message) {
     error = message;
@@ -127,38 +332,24 @@ class PushNotificationService extends ChangeNotifier {
   Future<void> initialize() async {
     if (initialized) return;
 
-    if (kIsWeb && webVapidKey.isEmpty) {
-      configurationError('Clé VAPID manquante : FIREBASE_WEB_VAPID_KEY.');
-      return;
-    }
-
     try {
       if (!kIsWeb) {
-        await _local.initialize(
-          const InitializationSettings(
-            android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-            iOS: DarwinInitializationSettings(),
-          ),
+        await _initializeLocalNotifications(
+          _local,
+          onResponse: notificationTapForeground,
+          onBackgroundResponse: notificationActionBackgroundHandler,
         );
 
-        final androidImplementation = _local
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
+        final android = _local.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        await android?.requestNotificationsPermission();
 
-        // Créer le canal de notification avec haute importance
-        await androidImplementation?.createNotificationChannel(channel);
-
-        // Demande explicite de permission d'affichage sur Android 13+ (POST_NOTIFICATIONS)
-        await androidImplementation?.requestNotificationsPermission();
-
-        // Demande de permission FCM
         await _messaging.requestPermission(
           alert: true,
           badge: true,
           sound: true,
           provisional: false,
         );
-
         await _messaging.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
@@ -174,226 +365,155 @@ class PushNotificationService extends ChangeNotifier {
         token = newToken;
         registeredWithBackend = false;
         notifyListeners();
-        await _registerToken();
+        if (MedilinkApi.instance.isAuthenticated) {
+          await _registerToken();
+        }
       });
 
       _foregroundSubscription =
           FirebaseMessaging.onMessage.listen((message) async {
         _addMessage(message);
         latestForegroundMessage = message;
-        notifyListeners();
-
-        final title =
-            message.notification?.title ?? message.data['title']?.toString();
-        final body =
-            message.notification?.body ?? message.data['body']?.toString();
-
-        if (defaultTargetPlatform == TargetPlatform.android &&
-            (title != null || body != null)) {
-          await _local.show(
-            message.messageId?.hashCode ??
-                DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            title ?? 'MedLink',
-            body ?? '',
-            const NotificationDetails(
-              android: AndroidNotificationDetails(
-                'medilink_notifications',
-                'Notifications MedLink',
-                channelDescription:
-                    'Notifications envoyées depuis Novu et Firebase FCM',
-                importance: Importance.high,
-                priority: Priority.high,
-                icon: '@mipmap/ic_launcher',
-              ),
-            ),
-          );
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          await _showRemoteNotification(message, _local);
         }
+        notifyListeners();
       });
 
       _openedSubscription =
-          FirebaseMessaging.onMessageOpenedApp.listen(_addMessage);
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteMessageOpened);
       final initialMessage = await _messaging.getInitialMessage();
-      if (initialMessage != null) _addMessage(initialMessage);
+      if (initialMessage != null) _handleRemoteMessageOpened(initialMessage);
+
+      if (!kIsWeb) {
+        final launchDetails = await _local.getNotificationAppLaunchDetails();
+        if (launchDetails?.didNotificationLaunchApp == true) {
+          final payload = _decodeNotificationPayload(
+            launchDetails?.notificationResponse?.payload,
+          );
+          _setPendingConversation(payload['conversationId']?.toString());
+        }
+      }
 
       initialized = true;
       error = null;
       notifyListeners();
-
-      await _registerToken();
     } catch (exception) {
       error = 'Initialisation FCM impossible : $exception';
       notifyListeners();
     }
   }
 
+  void _handleForegroundNotificationResponse(NotificationResponse response) {
+    if (response.actionId == 'reply' || response.actionId == 'mark_read') {
+      unawaited(_handleNotificationActionInBackground(response));
+      return;
+    }
+    final payload = _decodeNotificationPayload(response.payload);
+    _setPendingConversation(payload['conversationId']?.toString());
+  }
+
+  void _handleRemoteMessageOpened(RemoteMessage message) {
+    _addMessage(message);
+    _setPendingConversation(message.data['conversationId']?.toString());
+  }
+
+  void _setPendingConversation(String? conversationId) {
+    if (conversationId == null || conversationId.isEmpty) return;
+    _pendingConversationId = conversationId;
+    notifyListeners();
+  }
+
+  String? takePendingConversationId() {
+    final value = _pendingConversationId;
+    _pendingConversationId = null;
+    return value;
+  }
+
   void _addMessage(RemoteMessage message) {
-    if (messages.any(
-        (item) => item.messageId != null && item.messageId == message.messageId)) {
+    if (messages.any((item) =>
+        item.messageId != null && item.messageId == message.messageId)) {
       return;
     }
     messages.insert(0, message);
     notifyListeners();
   }
 
-  /// Enregistre le token auprès de Novu via le serveur bridge ou directement via l'API Novu.
-  Future<void> _registerToken() async {
-    registeredWithBackend = false;
-    if (token == null || token!.isEmpty) {
-      error = 'Token FCM indisponible. Initialisez FCM avant de vous enregistrer.';
-      notifyListeners();
-      return;
-    }
-
-    final currentSubId = subscriberId;
-    if (currentSubId.isEmpty) {
-      error = 'Identifiant subscriber Novu non renseigné (NOVU_SUBSCRIBER_ID).';
-      notifyListeners();
-      return;
-    }
-
-    // 1. Essai d'enregistrement via le endpoint backend configuré
-    bool endpointSuccess = false;
-    if (registerEndpoint.isNotEmpty) {
-      try {
-        final uri = Uri.parse(registerEndpoint);
-        final response = await http
-            .post(
-              uri,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'subscriberId': currentSubId,
-                'providerId': 'fcm',
-                'token': token,
-              }),
-            )
-            .timeout(const Duration(seconds: 10));
-
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          endpointSuccess = true;
-        }
-      } catch (_) {
-        // En cas d'échec du bridge distant, on bascule vers l'enregistrement direct Novu
-      }
-    }
-
-    // 2. Si le endpoint bridge n'a pas répondu ou si la clé Novu est présente, enregistrer directement chez Novu
-    if (!endpointSuccess && novuSecretKey.isNotEmpty && novuApiBaseUrl.isNotEmpty) {
-      try {
-        final base = novuApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
-        final headers = {
-          'Content-Type': 'application/json',
-          'Authorization': 'ApiKey $novuSecretKey',
-        };
-
-        // Créer ou s'assurer que le subscriber existe
-        try {
-          await http
-              .post(
-                Uri.parse('$base/v1/subscribers'),
-                headers: headers,
-                body: jsonEncode({'subscriberId': currentSubId}),
-              )
-              .timeout(const Duration(seconds: 10));
-        } catch (_) {}
-
-        // Enregistrer le device token FCM pour ce subscriber
-        final credUri = Uri.parse(
-          '$base/v1/subscribers/${Uri.encodeComponent(currentSubId)}/credentials',
-        );
-        final credBody = <String, dynamic>{
-          'providerId': 'fcm',
-          'credentials': {
-            'deviceTokens': [token],
-          },
-        };
-        if (novuIntegrationIdentifier.isNotEmpty) {
-          credBody['integrationIdentifier'] = novuIntegrationIdentifier;
-        }
-
-        final credRes = await http
-            .put(
-              credUri,
-              headers: headers,
-              body: jsonEncode(credBody),
-            )
-            .timeout(const Duration(seconds: 12));
-
-        if (credRes.statusCode >= 200 && credRes.statusCode < 300) {
-          endpointSuccess = true;
-        } else {
-          error = 'Novu HTTP ${credRes.statusCode} : ${credRes.body}';
-        }
-      } catch (e) {
-        error = 'Enregistrement Novu direct impossible : $e';
-      }
-    }
-
-    if (endpointSuccess) {
-      registeredWithBackend = true;
-      error = null;
-    } else if (error == null) {
-      error = 'Impossible d\'enregistrer le token auprès de Novu.';
-    }
-    notifyListeners();
+  /// Appelé après restauration ou ouverture d'une session MediLink.
+  Future<void> registerAuthenticatedDevice() async {
+    if (!MedilinkApi.instance.isAuthenticated) return;
+    await _registerToken();
   }
 
-  /// Déclenche le workflow Novu spécifié (ex: `medilink-workflow`) pour tester la réception push.
-  Future<bool> triggerTestPush({
-    String? title,
-    String? body,
-    Map<String, dynamic>? customPayload,
-  }) async {
-    if (novuSecretKey.isEmpty || novuApiBaseUrl.isEmpty) {
-      error = 'Clé secrète Novu manquante pour le déclenchement du test.';
-      notifyListeners();
-      return false;
+  Future<String> _getDeviceId() async {
+    final existing = await _secureStorage.read(key: _deviceStorageKey);
+    if (existing != null && RegExp(r'^[A-Za-z0-9_-]{16,100}$').hasMatch(existing)) {
+      return existing;
     }
+    final random = Random.secure();
+    final id = List<int>.generate(24, (_) => random.nextInt(256))
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+    await _secureStorage.write(key: _deviceStorageKey, value: id);
+    return id;
+  }
 
-    triggeringTest = true;
-    notifyListeners();
+  Future<void> _registerToken() async {
+    if (!MedilinkApi.instance.isConfigured ||
+        !MedilinkApi.instance.isAuthenticated) {
+      registeredWithBackend = false;
+      return;
+    }
+    if (token == null || token!.isEmpty) {
+      error = 'Token FCM indisponible sur cet appareil.';
+      notifyListeners();
+      return;
+    }
 
     try {
-      final base = novuApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
-      final eventUri = Uri.parse('$base/v1/events/trigger');
-      final eventPayload = {
-        'name': workflowId,
-        'to': [subscriberId],
-        'payload': {
-          'title': title ?? 'MedLink · Notification Novu',
-          'body': body ??
-              'Test push réussi avec le workflow $workflowId !',
-          ...?customPayload,
-        },
-      };
+      final deviceId = await _getDeviceId();
+      await MedilinkApi.instance.notificationRegisterDevice(
+        deviceId: deviceId,
+        token: token!,
+        platform: kIsWeb ? 'web' : 'mobile',
+      );
+      registeredWithBackend = true;
+      error = null;
+    } catch (exception) {
+      registeredWithBackend = false;
+      error = 'Enregistrement du token FCM impossible : $exception';
+    }
+    notifyListeners();
+  }
 
-      final response = await http
-          .post(
-            eventUri,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'ApiKey $novuSecretKey',
-            },
-            body: jsonEncode(eventPayload),
-          )
-          .timeout(const Duration(seconds: 12));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        error = null;
-        return true;
-      } else {
-        error = 'Échec déclenchement Novu (${response.statusCode}) : ${response.body}';
-        return false;
+  Future<void> unregisterAuthenticatedDevice() async {
+    if (!MedilinkApi.instance.isAuthenticated) {
+      registeredWithBackend = false;
+      return;
+    }
+    try {
+      final deviceId = await _secureStorage.read(key: _deviceStorageKey);
+      if (deviceId != null && deviceId.isNotEmpty) {
+        await MedilinkApi.instance.notificationUnregisterDevice(deviceId);
       }
-    } catch (e) {
-      error = 'Erreur déclenchement Novu : $e';
-      return false;
+    } catch (_) {
+      // The local session is still cleared by AuthController on logout.
     } finally {
-      triggeringTest = false;
+      registeredWithBackend = false;
       notifyListeners();
     }
   }
 
-  Future<void> retryRegistration() => _registerToken();
+  Future<void> retryRegistration() => registerAuthenticatedDevice();
+
+  void clearRegistrationState() {
+    registeredWithBackend = false;
+    notifyListeners();
+  }
+
+  void notificationActionCompleted() {
+    notifyListeners();
+  }
 
   @override
   void dispose() {
@@ -402,4 +522,12 @@ class PushNotificationService extends ChangeNotifier {
     _tokenSubscription?.cancel();
     super.dispose();
   }
+}
+
+/// Réponse utilisateur quand l'application est déjà ouverte ou lorsqu'une
+/// notification locale a été utilisée pour ouvrir l'application.
+void notificationTapForeground(NotificationResponse response) {
+  PushNotificationService.instance._handleForegroundNotificationResponse(
+    response,
+  );
 }
