@@ -399,6 +399,15 @@ class PushNotificationService extends ChangeNotifier {
     }
   }
 
+  void _handleForegroundNotificationResponse(NotificationResponse response) {
+    if (response.actionId == 'reply' || response.actionId == 'mark_read') {
+      unawaited(_handleNotificationActionInBackground(response));
+      return;
+    }
+    final payload = _decodeNotificationPayload(response.payload);
+    _setPendingConversation(payload['conversationId']?.toString());
+  }
+
   void _handleRemoteMessageOpened(RemoteMessage message) {
     _addMessage(message);
     _setPendingConversation(message.data['conversationId']?.toString());
