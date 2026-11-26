@@ -277,24 +277,49 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       LineAwesomeIcons.calendar_alt_solid,
     ];
     return Scaffold(
+      backgroundColor: doctor ? const Color(0xfff5f7fc) : null,
       appBar: AppBar(
-        backgroundColor: doctor ? const Color(0xfff8fcff) : null,
+        backgroundColor: doctor ? Colors.white : null,
         surfaceTintColor: doctor ? Colors.transparent : null,
         elevation: doctor ? 0 : null,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: doctor ? const Color(0xffe5f7f5) : const Color(0xffe7f2fb),
-                borderRadius: BorderRadius.circular(12),
+            if (doctor)
+              const _HeartPulseBrandMark()
+            else
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xffe7f2fb),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const MedilinkLogoMark(size: 20),
               ),
-              child: const MedilinkLogoMark(size: 20),
-            ),
             const SizedBox(width: 10),
-            const Text(
-              'MedLink',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -.3),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  doctor ? 'MediLink' : 'MedLink',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: doctor ? const Color(0xff172554) : null,
+                    fontSize: doctor ? 18 : null,
+                    height: 1.1,
+                  ),
+                ),
+                if (doctor)
+                  const Text(
+                    'ESPACE MÉDECIN',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xff64748b),
+                      fontSize: 9,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -350,7 +375,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: doctor ? Colors.white : null,
-        indicatorColor: doctor ? const Color(0xffdff5f0) : null,
+        surfaceTintColor: doctor ? Colors.transparent : null,
+        indicatorColor: doctor ? const Color(0xffeaf1ff) : null,
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
           selected = v;
