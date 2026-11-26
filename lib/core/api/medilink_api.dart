@@ -692,6 +692,18 @@ class MedilinkApi {
         'phone': phone,
       }));
 
+  Future<Map<String, dynamic>> adminUploadProfilePhoto({
+    required http.MultipartFile file,
+  }) async =>
+      _asMap(await postMultipart(
+        'auth/v2/admin/profile/photo',
+        fields: const {},
+        files: [file],
+      ));
+
+  Future<Map<String, dynamic>> adminProfilePhoto() async =>
+      _asMap(await get('auth/v2/admin/profile/photo'));
+
   // ── Intégrations (endpoints /integration/v2/…) ──
   Future<Map<String, dynamic>> integrationDoctorZone() async =>
       _asMap(await get('integration/v2/doctor/zone'));
