@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
@@ -232,9 +234,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     // Reconcile retries as well as first sends. A server event is
     // authoritative even if the HTTP response subsequently times out.
     final pendingIndex = messages.indexWhere((m) =>
-        (m['deliveryStatus'] == 'sending' || m['deliveryStatus'] == 'failed') &&
-        m['senderId']?.toString() == currentUserId &&
-        m['content']?.toString() == item['body']?.toString());
+        m['clientMessageId']?.toString() == item['clientMessageId']?.toString() &&
+        item['clientMessageId'] != null);
     setState(() {
       final confirmed = {
         ...item,
@@ -303,17 +304,30 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final response = await MedilinkApi.instance.get(
           'messages/v2/conversations/${Uri.encodeComponent(widget.conversation['id'].toString())}');
       final raw = response is Map ? response['items'] : null;
-      messages = raw is List
+      final loaded = raw is List
           ? raw.whereType<Map>().map((row) {
               final item = Map<String, dynamic>.from(row);
               return {
                 ...item,
                 'senderId': item['senderUserId'],
                 'content': item['body'],
-                'createdAt': item['sentAt']
+                'createdAt': item['sentAt'],
+                'deliveryStatus': 'sent',
               };
             }).toList()
           : <Map<String, dynamic>>[];
+      // Keep local pending/failed messages when a socket reconnect triggers a reload.
+      final localPending = messages.where((message) =>
+          message['deliveryStatus'] == 'sending' ||
+          message['deliveryStatus'] == 'failed');
+      for (final pending in localPending) {
+        final key = pending['clientMessageId']?.toString();
+        if (!loaded.any((message) =>
+            key != null && message['clientMessageId']?.toString() == key)) {
+          loaded.add(pending);
+        }
+      }
+      messages = loaded;
       apiError = null;
       await MedilinkApi.instance
           .conversationMarkRead(widget.conversation['id'].toString());
@@ -334,77 +348,44 @@ class _ConversationScreenState extends State<ConversationScreen> {
     super.dispose();
   }
 
+  String _createClientMessageId() {
+    final random = Random.secure();
+    final suffix = List<int>.generate(16, (_) => random.nextInt(256))
+        .map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${DateTime.now().microsecondsSinceEpoch}-$suffix';
+  }
+
   Future<void> send() async {
     final text = controller.text.trim();
     if (text.isEmpty || sending) return;
-    final pendingId = 'pending-${DateTime.now().microsecondsSinceEpoch}';
     final pending = {
-      'id': pendingId,
+      'id': 'pending-${_createClientMessageId()}',
+      'clientMessageId': _createClientMessageId(),
       'senderId': currentUserId,
       'content': text,
       'createdAt': DateTime.now().toIso8601String(),
       'deliveryStatus': 'sending',
     };
     setState(() {
-      sending = true;
       messages.add(pending);
       controller.clear();
     });
-    try {
-      final sent = await MedilinkApi.instance
-          .messageSend(widget.conversation['id'].toString(), text);
-      if (!mounted) return;
-      final item = {
-        ...sent,
-        'senderId': sent['senderUserId'],
-        'content': sent['body'],
-        'createdAt': sent['sentAt'],
-        'deliveryStatus': 'sent',
-      };
-      setState(() {
-        final pendingIndex = messages.indexWhere((m) => m['id'] == pendingId);
-        final confirmedIndex = messages.indexWhere((m) => m['id'] == item['id']);
-        if (pendingIndex >= 0) {
-          messages[pendingIndex] = item;
-          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
-            messages.removeAt(confirmedIndex);
-          }
-        } else if (confirmedIndex < 0) {
-          messages.add(item);
-        }
-        sending = false;
-      });
-    } catch (exception) {
-      if (!mounted) return;
-      setState(() {
-        final index = messages.indexWhere((m) => m['id'] == pendingId);
-        if (index >= 0) {
-          messages[index] = {...messages[index], 'deliveryStatus': 'failed'};
-        }
-        sending = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Envoi impossible : $exception')));
-    }
+    await _sendPending(pending);
   }
 
-  Future<void> _retryMessage(String messageId) async {
+  Future<void> _sendPending(Map<String, dynamic> pending) async {
     if (sending) return;
-    final index = messages.indexWhere((message) =>
-        message['id']?.toString() == messageId &&
-        message['deliveryStatus'] == 'failed');
-    if (index < 0) return;
-    final body = messages[index]['content']?.toString() ?? '';
-    if (body.trim().isEmpty) return;
-
+    final clientMessageId = pending['clientMessageId'].toString();
     setState(() {
       sending = true;
-      messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
+      final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+      if (index >= 0) messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
     });
     try {
       final sent = await MedilinkApi.instance.messageSend(
         widget.conversation['id'].toString(),
-        body,
+        pending['content'].toString(),
+        clientMessageId: clientMessageId,
       );
       if (!mounted) return;
       final item = {
@@ -415,64 +396,35 @@ class _ConversationScreenState extends State<ConversationScreen> {
         'deliveryStatus': 'sent',
       };
       setState(() {
-        final pendingIndex = messages.indexWhere((message) =>
-            message['id']?.toString() == messageId);
-        final confirmedIndex = messages.indexWhere((message) =>
-            message['id']?.toString() == item['id']?.toString());
+        final pendingIndex = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+        final confirmedIndex = messages.indexWhere((m) => m['id'] == item['id']);
         if (pendingIndex >= 0) {
           messages[pendingIndex] = item;
-          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
-            messages.removeAt(confirmedIndex);
-          }
+          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) messages.removeAt(confirmedIndex);
         } else if (confirmedIndex < 0) {
           messages.add(item);
         }
+        sending = false;
       });
     } catch (exception) {
       if (!mounted) return;
-      // The backend can persist and broadcast the message even when the
-      // request response is lost. Refresh only this conversation to reconcile.
-      var accepted = false;
-      try {
-        final response = await MedilinkApi.instance.get(
-            'messages/v2/conversations/${Uri.encodeComponent(widget.conversation['id'].toString())}');
-        final raw = response is Map ? response['items'] : null;
-        if (raw is List) {
-          final refreshed = raw.whereType<Map>().map((row) {
-            final item = Map<String, dynamic>.from(row);
-            return {
-              ...item,
-              'senderId': item['senderUserId'],
-              'content': item['body'],
-              'createdAt': item['sentAt'],
-            };
-          }).toList();
-          accepted = refreshed.any((message) =>
-              message['senderId']?.toString() == currentUserId &&
-              message['content']?.toString() == body);
-          if (accepted) setState(() => messages = refreshed);
+      setState(() {
+        final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+        // A real-time confirmation may arrive even if the HTTP response times out.
+        if (index >= 0 && messages[index]['deliveryStatus'] != 'sent') {
+          messages[index] = {...messages[index], 'deliveryStatus': 'failed'};
         }
-      } catch (_) {
-        // Preserve the retry error if reconciliation cannot reach the API.
-      }
-      if (!accepted) {
-        final failedIndex = messages.indexWhere((message) =>
-            message['id']?.toString() == messageId);
-        if (failedIndex >= 0) {
-          setState(() {
-            messages[failedIndex] = {
-              ...messages[failedIndex],
-              'deliveryStatus': 'failed',
-            };
-          });
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Nouvel essai impossible : $exception')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => sending = false);
+        sending = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Envoi non confirmé : $exception. Vous pouvez réessayer sans créer de doublon.')),
+      );
     }
+  }
+
+  Future<void> _retryMessage(Map<String, dynamic> message) async {
+    if (sending || message['deliveryStatus'] != 'failed') return;
+    await _sendPending(message);
   }
 
   @override
@@ -534,37 +486,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 height: 1.35)),
                           if (message['deliveryStatus'] == 'sending' || message['deliveryStatus'] == 'failed')
                             Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    message['deliveryStatus'] == 'sending'
-                                        ? 'Envoi…'
-                                        : 'Échec de l’envoi',
-                                    style: TextStyle(
-                                      color: mine ? Colors.white70 : AppTheme.textSecondary,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  if (message['deliveryStatus'] == 'failed') ...[
-                                    const SizedBox(width: 8),
-                                    TextButton.icon(
-                                      onPressed: sending
-                                          ? null
-                                          : () => _retryMessage(message['id'].toString()),
+                              padding: const EdgeInsets.only(top: 5),
+                              child: message['deliveryStatus'] == 'failed'
+                                  ? TextButton.icon(
+                                      onPressed: sending ? null : () => _retryMessage(message),
                                       style: TextButton.styleFrom(
-                                        foregroundColor: mine ? Colors.white : AppTheme.primary,
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                        minimumSize: Size.zero,
+                                        foregroundColor: mine ? Colors.white : const Color(0xffb45309),
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 28),
                                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      icon: const Icon(Icons.refresh, size: 13),
-                                      label: const Text('Réessayer', style: TextStyle(fontSize: 11)),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                                      icon: const Icon(Icons.refresh_rounded, size: 14),
+                                      label: const Text('Échec · Réessayer', style: TextStyle(fontSize: 11)),
+                                    )
+                                  : Text('Envoi…', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10)),
                             ),
                         ]),
                       ));

@@ -67,6 +67,47 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xffe5f5ff), Color(0xffe8fbf5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xffdceef0)),
+            ),
+            child: Row(children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.85),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.assignment_turned_in_outlined,
+                    color: Color(0xff168b91), size: 26),
+              ),
+              const SizedBox(width: 13),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Vos propositions',
+                        style: TextStyle(
+                            color: Color(0xff16324f),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800)),
+                    SizedBox(height: 3),
+                    Text('Suivez les échanges et les réponses de vos patients.',
+                        style: TextStyle(color: Color(0xff58748a), height: 1.3)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
           Text('Mes propositions',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppTheme.textPrimary, fontWeight: FontWeight.w800)),

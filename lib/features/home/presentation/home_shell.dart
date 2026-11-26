@@ -19,6 +19,7 @@ import 'dashboard_screen.dart';
 import 'admin_accounts_screen.dart';
 import 'admin_profile_screen.dart';
 import '../../../core/widgets/medilink_logo_mark.dart';
+import '../../../core/widgets/doctor_page_background.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.auth});
@@ -349,6 +350,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
       AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
+    final visiblePages = doctor
+        ? pages.map((page) => DoctorPageBackground(child: page)).toList()
+        : pages;
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
@@ -361,12 +365,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ];
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: doctor ? const Color(0xfff8fcff) : null,
+        surfaceTintColor: doctor ? Colors.transparent : null,
+        elevation: doctor ? 0 : null,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xffe7f2fb),
+                color: doctor ? const Color(0xffe5f7f5) : const Color(0xffe7f2fb),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const MedilinkLogoMark(size: 20),
@@ -398,9 +405,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ],
       ),
       body: _bodyWithStartupStatus(
-        IndexedStack(index: selected, children: pages),
+        IndexedStack(index: selected, children: visiblePages),
       ),
       bottomNavigationBar: NavigationBar(
+        backgroundColor: doctor ? Colors.white : null,
+        indicatorColor: doctor ? const Color(0xffdff5f0) : null,
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
           selected = v;

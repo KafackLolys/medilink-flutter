@@ -379,6 +379,18 @@ class MedilinkApi {
     return _asMap(await patch('doctors/v2/me', data));
   }
 
+  Future<Map<String, dynamic>> doctorUploadProfilePhoto({
+    required http.MultipartFile file,
+  }) async =>
+      _asMap(await postMultipart(
+        'doctors/v2/me/photo',
+        fields: const {},
+        files: [file],
+      ));
+
+  Future<Map<String, dynamic>> doctorProfilePhoto() async =>
+      _asMap(await get('doctors/v2/me/photo'));
+
   Future<Map<String, dynamic>> doctorUploadDocument({
     required http.MultipartFile file,
     required String type,
@@ -597,10 +609,14 @@ class MedilinkApi {
   Future<Map<String, dynamic>> conversationMessages(String id) async =>
       _asMap(await get('messages/v2/conversations/${Uri.encodeComponent(id)}'));
 
-  Future<Map<String, dynamic>> messageSend(String id, String body) async =>
+  Future<Map<String, dynamic>> messageSend(
+    String id,
+    String body, {
+    required String clientMessageId,
+  }) async =>
       _asMap(await post(
         'messages/v2/conversations/${Uri.encodeComponent(id)}',
-        {'body': body},
+        {'body': body, 'clientMessageId': clientMessageId},
       ));
 
   Future<Map<String, dynamic>> conversationMarkRead(String id) async =>

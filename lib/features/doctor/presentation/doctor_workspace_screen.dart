@@ -2,11 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:image/image.dart' as img;
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/medilink_api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/doctor_page_background.dart';
 
 /// Espace professionnel : profil, vérification, disponibilités, zone et avis.
 class DoctorWorkspaceScreen extends StatefulWidget {
@@ -25,6 +27,8 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
       blocked = [],
       appointments = [];
   bool loading = false;
+  bool uploadingPhoto = false;
+  String? photoUrl;
   int durationMinutes = 30;
   Set<String> selectedModes = <String>{};
   String? error;
@@ -116,6 +120,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
         safe(api.integrationDoctorZone()),
         safe(api.doctorReviews()),
         safe(api.availabilityDuration()),
+        safe(api.doctorProfilePhoto()),
       ]);
       if (results[0] is Map<String, dynamic>)
         profile = results[0] as Map<String, dynamic>;
@@ -138,6 +143,10 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
         reviews = results[6] as List<Map<String, dynamic>>;
       if (results[7] is Map)
         durationMinutes = (results[7] as Map)['durationMinutes'] as int? ?? 30;
+      if (results[8] is Map) {
+        final url = (results[8] as Map)['photoUrl']?.toString();
+        photoUrl = url?.isNotEmpty == true ? url : null;
+      }
       if (failures.isNotEmpty)
         error =
             'Certaines sections n’ont pas pu être actualisées : ${failures.first}';
@@ -175,13 +184,16 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
+  Widget build(BuildContext context) => DoctorPageBackground(
+    child: Material(
+      color: Colors.transparent,
       child: RefreshIndicator(
       onRefresh: _load,
       child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
           children: [
+            _profilePhotoCard(),
+            const SizedBox(height: 16),
             Text('Espace professionnel',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
@@ -496,14 +508,149 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                                 '${r['rating'] ?? ''}/5 · ${r['patientName'] ?? r['patient'] ?? 'Patient'}'),
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
-          ])));
+          ]))));
+  }
 
-  Widget _section(String title, IconData icon, List<Widget> children) => Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-          padding: const EdgeInsets.all(16),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _profilePhotoCard() => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xffe8f5ff), Color(0xfff0fdfa)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xffd9eaf5)),
+        ),
+        child: Row(children: [
+          Stack(alignment: Alignment.bottomRight, children: [
+            CircleAvatar(
+              radius: 38,
+              backgroundColor: Colors.white,
+              backgroundImage: photoUrl == null ? null : NetworkImage(photoUrl!),
+              child: photoUrl == null
+                  ? const Icon(Icons.medical_services_outlined,
+                      color: Color(0xff168b91), size: 34)
+                  : null,
+            ),
+            Material(
+              color: const Color(0xff168b91),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: uploadingPhoto ? null : _pickAndUploadProfilePhoto,
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: uploadingPhoto
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.camera_alt_outlined,
+                          size: 16, color: Colors.white),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  profile['fullName']?.toString() ??
+                      profile['name']?.toString() ??
+                      'Votre profil médecin',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Color(0xff16324f),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                const Text('Votre image professionnelle',
+                    style: TextStyle(color: Color(0xff58748a))),
+                TextButton.icon(
+                  onPressed: uploadingPhoto ? null : _pickAndUploadProfilePhoto,
+                  icon: const Icon(Icons.photo_camera_back_outlined, size: 17),
+                  label: Text(uploadingPhoto ? 'Compression et import…' : 'Modifier la photo'),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      );
+
+  Future<void> _pickAndUploadProfilePhoto() async {
+    final selection = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+      withData: true,
+    );
+    if (selection == null || selection.files.isEmpty || !mounted) return;
+    final bytes = selection.files.single.bytes;
+    if (bytes == null || bytes.length > 8 * 1024 * 1024) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Choisissez une image lisible de 8 Mo maximum.'),
+      ));
+      return;
+    }
+    setState(() => uploadingPhoto = true);
+    try {
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) throw const FormatException('Image invalide.');
+      final resized = img.copyResize(
+        decoded,
+        width: decoded.width > 720 ? 720 : decoded.width,
+        height: decoded.height > 720 ? 720 : decoded.height,
+        maintainAspect: true,
+        interpolation: img.Interpolation.average,
+      );
+      final compressed = img.encodeJpg(resized, quality: 78);
+      if (compressed.length > 2 * 1024 * 1024) {
+        throw const FormatException('La photo compressée dépasse 2 Mo.');
+      }
+      final result = await api.doctorUploadProfilePhoto(
+        file: http.MultipartFile.fromBytes(
+          'file',
+          compressed,
+          filename: 'doctor-profile.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+      final url = result['photoUrl']?.toString();
+      if (url == null || url.isEmpty) {
+        throw const FormatException('Le serveur n’a pas retourné la photo.');
+      }
+      if (!mounted) return;
+      setState(() => photoUrl = url);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Photo de profil mise à jour.'),
+      ));
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import de la photo impossible : $exception')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => uploadingPhoto = false);
+    }
+  }
+
+  Widget _section(String title, IconData icon, List<Widget> children) => Container(
+      margin: const EdgeInsets.only(bottom: 13),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xffe2edf4)),
+        boxShadow: const [BoxShadow(color: Color(0x0b244b63), blurRadius: 18, offset: Offset(0, 6))],
+      ),
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Icon(icon, color: AppTheme.primary),
               const SizedBox(width: 10),
@@ -514,7 +661,8 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
             ]),
             const SizedBox(height: 12),
             ...children
-          ])));
+          ]),
+    );
   Widget _field(TextEditingController c, String label,
           {bool numeric = false, int lines = 1}) =>
       Padding(
