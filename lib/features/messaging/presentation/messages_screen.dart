@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
@@ -230,9 +232,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (messages.any((m) => m['id']?.toString() == item['id']?.toString()))
       return;
     final pendingIndex = messages.indexWhere((m) =>
-        m['deliveryStatus'] == 'sending' &&
-        m['senderId']?.toString() == currentUserId &&
-        m['content']?.toString() == item['body']?.toString());
+        m['clientMessageId']?.toString() == item['clientMessageId']?.toString() &&
+        item['clientMessageId'] != null);
     setState(() {
       final confirmed = {
         ...item,
@@ -332,25 +333,45 @@ class _ConversationScreenState extends State<ConversationScreen> {
     super.dispose();
   }
 
+  String _createClientMessageId() {
+    final random = Random.secure();
+    final suffix = List<int>.generate(16, (_) => random.nextInt(256))
+        .map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${DateTime.now().microsecondsSinceEpoch}-$suffix';
+  }
+
   Future<void> send() async {
     final text = controller.text.trim();
     if (text.isEmpty || sending) return;
-    final pendingId = 'pending-${DateTime.now().microsecondsSinceEpoch}';
     final pending = {
-      'id': pendingId,
+      'id': 'pending-${_createClientMessageId()}',
+      'clientMessageId': _createClientMessageId(),
       'senderId': currentUserId,
       'content': text,
       'createdAt': DateTime.now().toIso8601String(),
       'deliveryStatus': 'sending',
     };
     setState(() {
-      sending = true;
       messages.add(pending);
       controller.clear();
     });
+    await _sendPending(pending);
+  }
+
+  Future<void> _sendPending(Map<String, dynamic> pending) async {
+    if (sending) return;
+    final clientMessageId = pending['clientMessageId'].toString();
+    setState(() {
+      sending = true;
+      final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+      if (index >= 0) messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
+    });
     try {
-      final sent = await MedilinkApi.instance
-          .messageSend(widget.conversation['id'].toString(), text);
+      final sent = await MedilinkApi.instance.messageSend(
+        widget.conversation['id'].toString(),
+        pending['content'].toString(),
+        clientMessageId: clientMessageId,
+      );
       if (!mounted) return;
       final item = {
         ...sent,
@@ -360,13 +381,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         'deliveryStatus': 'sent',
       };
       setState(() {
-        final pendingIndex = messages.indexWhere((m) => m['id'] == pendingId);
+        final pendingIndex = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
         final confirmedIndex = messages.indexWhere((m) => m['id'] == item['id']);
         if (pendingIndex >= 0) {
           messages[pendingIndex] = item;
-          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
-            messages.removeAt(confirmedIndex);
-          }
+          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) messages.removeAt(confirmedIndex);
         } else if (confirmedIndex < 0) {
           messages.add(item);
         }
@@ -375,15 +394,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
     } catch (exception) {
       if (!mounted) return;
       setState(() {
-        final index = messages.indexWhere((m) => m['id'] == pendingId);
-        if (index >= 0) {
+        final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+        // A real-time confirmation may arrive even if the HTTP response times out.
+        if (index >= 0 && messages[index]['deliveryStatus'] != 'sent') {
           messages[index] = {...messages[index], 'deliveryStatus': 'failed'};
         }
         sending = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Envoi impossible : $exception')));
+        SnackBar(content: Text('Envoi non confirmé : $exception. Vous pouvez réessayer sans créer de doublon.')),
+      );
     }
+  }
+
+  Future<void> _retryMessage(Map<String, dynamic> message) async {
+    if (sending || message['deliveryStatus'] != 'failed') return;
+    await _sendPending(message);
   }
 
   @override
@@ -444,7 +470,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                     mine ? Colors.white : AppTheme.textPrimary,
                                 height: 1.35)),
                           if (message['deliveryStatus'] == 'sending' || message['deliveryStatus'] == 'failed')
-                            Padding(padding: const EdgeInsets.only(top: 4), child: Text(message['deliveryStatus'] == 'sending' ? 'Envoi…' : 'Échec de l’envoi', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10))),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 5),
+                              child: message['deliveryStatus'] == 'failed'
+                                  ? TextButton.icon(
+                                      onPressed: sending ? null : () => _retryMessage(message),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: mine ? Colors.white : const Color(0xffb45309),
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 28),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: const Icon(Icons.refresh_rounded, size: 14),
+                                      label: const Text('Échec · Réessayer', style: TextStyle(fontSize: 11)),
+                                    )
+                                  : Text('Envoi…', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10)),
+                            ),
                         ]),
                       ));
                 })),
