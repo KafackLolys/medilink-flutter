@@ -427,12 +427,25 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Widget _adminShell() => Scaffold(
+        backgroundColor: const Color(0xfff5f7fc),
         appBar: AppBar(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
           title: const Row(children: [
-            MedilinkLogoMark(size: 22),
-            SizedBox(width: 8),
-            Text('MedLink · Administration',
-                style: TextStyle(fontWeight: FontWeight.w800)),
+            _HeartPulseBrandMark(),
+            SizedBox(width: 9),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('MediLink', style: TextStyle(
+                    fontWeight: FontWeight.w900, color: Color(0xff172554),
+                    fontSize: 18, height: 1.1)),
+                Text('ADMINISTRATION', style: TextStyle(
+                    fontWeight: FontWeight.w700, color: Color(0xff64748b),
+                    fontSize: 9, letterSpacing: 1.1)),
+              ],
+            ),
           ]),
           actions: [
             IconButton(
@@ -458,6 +471,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ]),
         ),
         bottomNavigationBar: NavigationBar(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            indicatorColor: const Color(0xffeaf1ff),
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             selectedIndex: selected.clamp(0, 1),
             onDestinationSelected: (v) => setState(() => selected = v),
             destinations: const [
@@ -497,4 +514,61 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       appointmentRefresh++;
     });
   }
+}
+
+
+class _HeartPulseBrandMark extends StatelessWidget {
+  const _HeartPulseBrandMark();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xffeff6ff),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        alignment: Alignment.center,
+        child: CustomPaint(
+          size: const Size(27, 27),
+          painter: _HeartPulsePainter(),
+        ),
+      );
+}
+
+class _HeartPulsePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = const Color(0xff2563eb)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.9
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final heart = Path()
+      ..moveTo(size.width / 2, size.height * .86)
+      ..cubicTo(size.width * .36, size.height * .72, size.width * .08,
+          size.height * .52, size.width * .08, size.height * .31)
+      ..cubicTo(size.width * .08, size.height * .10, size.width * .34,
+          size.height * .04, size.width / 2, size.height * .23)
+      ..cubicTo(size.width * .66, size.height * .04, size.width * .92,
+          size.height * .10, size.width * .92, size.height * .31)
+      ..cubicTo(size.width * .92, size.height * .52, size.width * .64,
+          size.height * .72, size.width / 2, size.height * .86);
+    canvas.drawPath(heart, stroke);
+
+    final pulse = Path()
+      ..moveTo(size.width * .13, size.height * .48)
+      ..lineTo(size.width * .31, size.height * .48)
+      ..lineTo(size.width * .40, size.height * .34)
+      ..lineTo(size.width * .51, size.height * .64)
+      ..lineTo(size.width * .62, size.height * .41)
+      ..lineTo(size.width * .69, size.height * .48)
+      ..lineTo(size.width * .87, size.height * .48);
+    canvas.drawPath(pulse, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
