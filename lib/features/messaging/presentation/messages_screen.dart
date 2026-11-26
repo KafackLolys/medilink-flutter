@@ -386,6 +386,66 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  Future<void> _retryMessage(String messageId) async {
+    if (sending) return;
+    final index = messages.indexWhere((message) =>
+        message['id']?.toString() == messageId &&
+        message['deliveryStatus'] == 'failed');
+    if (index < 0) return;
+    final body = messages[index]['content']?.toString() ?? '';
+    if (body.trim().isEmpty) return;
+
+    setState(() {
+      sending = true;
+      messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
+    });
+    try {
+      final sent = await MedilinkApi.instance.messageSend(
+        widget.conversation['id'].toString(),
+        body,
+      );
+      if (!mounted) return;
+      final item = {
+        ...sent,
+        'senderId': sent['senderUserId'],
+        'content': sent['body'],
+        'createdAt': sent['sentAt'],
+        'deliveryStatus': 'sent',
+      };
+      setState(() {
+        final pendingIndex = messages.indexWhere((message) =>
+            message['id']?.toString() == messageId);
+        final confirmedIndex = messages.indexWhere((message) =>
+            message['id']?.toString() == item['id']?.toString());
+        if (pendingIndex >= 0) {
+          messages[pendingIndex] = item;
+          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
+            messages.removeAt(confirmedIndex);
+          }
+        } else if (confirmedIndex < 0) {
+          messages.add(item);
+        }
+      });
+    } catch (exception) {
+      if (!mounted) return;
+      final failedIndex = messages.indexWhere((message) =>
+          message['id']?.toString() == messageId);
+      if (failedIndex >= 0) {
+        setState(() {
+          messages[failedIndex] = {
+            ...messages[failedIndex],
+            'deliveryStatus': 'failed',
+          };
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nouvel essai impossible : $exception')),
+      );
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final contact =
@@ -444,7 +504,39 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                     mine ? Colors.white : AppTheme.textPrimary,
                                 height: 1.35)),
                           if (message['deliveryStatus'] == 'sending' || message['deliveryStatus'] == 'failed')
-                            Padding(padding: const EdgeInsets.only(top: 4), child: Text(message['deliveryStatus'] == 'sending' ? 'Envoi…' : 'Échec de l’envoi', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10))),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    message['deliveryStatus'] == 'sending'
+                                        ? 'Envoi…'
+                                        : 'Échec de l’envoi',
+                                    style: TextStyle(
+                                      color: mine ? Colors.white70 : AppTheme.textSecondary,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  if (message['deliveryStatus'] == 'failed') ...[
+                                    const SizedBox(width: 8),
+                                    TextButton.icon(
+                                      onPressed: sending
+                                          ? null
+                                          : () => _retryMessage(message['id'].toString()),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: mine ? Colors.white : AppTheme.primary,
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: const Icon(Icons.refresh, size: 13),
+                                      label: const Text('Réessayer', style: TextStyle(fontSize: 11)),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                         ]),
                       ));
                 })),
