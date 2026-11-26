@@ -71,12 +71,12 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xffe5f5ff), Color(0xffe8fbf5)],
+                colors: [Color(0xffe5f5ff), Color(0xffedf3ff)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xffdceef0)),
+              border: Border.all(color: const Color(0xffdbe6f7)),
             ),
             child: Row(children: [
               Container(
@@ -87,7 +87,7 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(Icons.assignment_turned_in_outlined,
-                    color: Color(0xff168b91), size: 26),
+                    color: Color(0xff2563eb), size: 26),
               ),
               const SizedBox(width: 13),
               const Expanded(
@@ -96,12 +96,12 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
                   children: [
                     Text('Vos propositions',
                         style: TextStyle(
-                            color: Color(0xff16324f),
+                            color: Color(0xff172554),
                             fontSize: 17,
                             fontWeight: FontWeight.w800)),
                     SizedBox(height: 3),
                     Text('Suivez les échanges et les réponses de vos patients.',
-                        style: TextStyle(color: Color(0xff58748a), height: 1.3)),
+                        style: TextStyle(color: Color(0xff64748b), height: 1.3)),
                   ],
                 ),
               ),

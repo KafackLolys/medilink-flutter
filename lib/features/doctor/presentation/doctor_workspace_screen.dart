@@ -509,18 +509,17 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
           ]))));
-  }
 
   Widget _profilePhotoCard() => Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xffe8f5ff), Color(0xfff0fdfa)],
+            colors: [Color(0xffe8f5ff), Color(0xffedf3ff)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xffd9eaf5)),
+          border: Border.all(color: const Color(0xffdbe6f7)),
         ),
         child: Row(children: [
           Stack(alignment: Alignment.bottomRight, children: [
@@ -530,7 +529,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
               backgroundImage: photoUrl == null ? null : NetworkImage(photoUrl!),
               child: photoUrl == null
                   ? const Icon(Icons.medical_services_outlined,
-                      color: Color(0xff168b91), size: 34)
+                      color: Color(0xff2563eb), size: 34)
                   : null,
             ),
             Material(
@@ -565,13 +564,13 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: Color(0xff16324f),
+                      color: Color(0xff172554),
                       fontSize: 17,
                       fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 const Text('Votre image professionnelle',
-                    style: TextStyle(color: Color(0xff58748a))),
+                    style: TextStyle(color: Color(0xff64748b))),
                 TextButton.icon(
                   onPressed: uploadingPhoto ? null : _pickAndUploadProfilePhoto,
                   icon: const Icon(Icons.photo_camera_back_outlined, size: 17),

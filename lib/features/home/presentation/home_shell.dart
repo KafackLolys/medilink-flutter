@@ -18,7 +18,6 @@ import '../../doctor/presentation/doctor_workspace_screen.dart';
 import 'dashboard_screen.dart';
 import 'admin_accounts_screen.dart';
 import 'admin_profile_screen.dart';
-import '../../../core/widgets/medilink_logo_mark.dart';
 import '../../../core/widgets/doctor_page_background.dart';
 
 class HomeShell extends StatefulWidget {
@@ -350,9 +349,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
       AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
-    final visiblePages = doctor
-        ? pages.map((page) => DoctorPageBackground(child: page)).toList()
-        : pages;
+    final visiblePages = pages
+        .map((page) => DoctorPageBackground(child: page))
+        .toList();
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
@@ -364,28 +363,85 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       LineAwesomeIcons.calendar_alt_solid,
     ];
     return Scaffold(
+      backgroundColor: const Color(0xfff5f7fc),
       appBar: AppBar(
-        backgroundColor: doctor ? const Color(0xfff8fcff) : null,
-        surfaceTintColor: doctor ? Colors.transparent : null,
-        elevation: doctor ? 0 : null,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: doctor ? const Color(0xffe5f7f5) : const Color(0xffe7f2fb),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const MedilinkLogoMark(size: 20),
-            ),
+            const _HeartPulseBrandMark(),
             const SizedBox(width: 10),
-            const Text(
-              'MedLink',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -.3),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'MediLink',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xff172554),
+                    fontSize: 18,
+                    height: 1.1,
+                  ),
+                ),
+                if (doctor || widget.auth.role == 'patient')
+                  Text(
+                    doctor ? 'ESPACE MÉDECIN' : 'ESPACE PATIENT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xff64748b),
+                      fontSize: 9,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+              tooltip: 'Compte patient',
+              icon: const Icon(LineAwesomeIcons.user_circle_solid),
+              onSelected: (value) {
+                if (value == 'profile') {
+                  if (doctor) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const DoctorWorkspaceScreen()));
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => DoctorPageBackground(child: PatientProfileScreen(
+                        user: Map<String, dynamic>.from(widget.auth.user ?? const {}),
+                      ))));
+                  }
+                } else if (value == 'logout') {
+                  _confirmSignOut(doctor ? 'médecin' : 'patient');
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_outline, color: Color(0xff2563eb)),
+                      SizedBox(width: 12),
+                      Text('Mon profil et dossier'),
+                    ],
+                  ),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Color(0xffdc2626)),
+                      SizedBox(width: 12),
+                      Text('Déconnexion'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
@@ -401,15 +457,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               child: const Icon(LineAwesomeIcons.bell_solid),
             ),
           ),
-          _accountMenu(doctor: doctor, admin: false),
         ],
       ),
       body: _bodyWithStartupStatus(
         IndexedStack(index: selected, children: visiblePages),
       ),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: doctor ? Colors.white : null,
-        indicatorColor: doctor ? const Color(0xffdff5f0) : null,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: const Color(0xffeaf1ff),
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
           selected = v;
@@ -493,6 +549,35 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   icon: Icon(Icons.person_outline), label: 'Mon profil')
             ]),
       );
+
+  Future<void> _confirmSignOut(String role) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmer la déconnexion'),
+        content: Text(
+          'Voulez-vous vraiment vous déconnecter de votre compte $role ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xffdc2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Me déconnecter'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.auth.signOut();
+    }
+  }
 
   Widget _bodyWithStartupStatus(Widget child) => Column(
         children: [
