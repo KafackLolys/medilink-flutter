@@ -302,17 +302,30 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final response = await MedilinkApi.instance.get(
           'messages/v2/conversations/${Uri.encodeComponent(widget.conversation['id'].toString())}');
       final raw = response is Map ? response['items'] : null;
-      messages = raw is List
+      final loaded = raw is List
           ? raw.whereType<Map>().map((row) {
               final item = Map<String, dynamic>.from(row);
               return {
                 ...item,
                 'senderId': item['senderUserId'],
                 'content': item['body'],
-                'createdAt': item['sentAt']
+                'createdAt': item['sentAt'],
+                'deliveryStatus': 'sent',
               };
             }).toList()
           : <Map<String, dynamic>>[];
+      // Keep local pending/failed messages when a socket reconnect triggers a reload.
+      final localPending = messages.where((message) =>
+          message['deliveryStatus'] == 'sending' ||
+          message['deliveryStatus'] == 'failed');
+      for (final pending in localPending) {
+        final key = pending['clientMessageId']?.toString();
+        if (!loaded.any((message) =>
+            key != null && message['clientMessageId']?.toString() == key)) {
+          loaded.add(pending);
+        }
+      }
+      messages = loaded;
       apiError = null;
       await MedilinkApi.instance
           .conversationMarkRead(widget.conversation['id'].toString());
