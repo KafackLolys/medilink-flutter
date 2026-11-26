@@ -139,9 +139,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   Widget build(BuildContext context) {
     final user = widget.auth.user ?? const <String, dynamic>{};
     final fullName = '${first.text} ${last.text}'.trim();
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
-      children: [
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+        children: [
         const Text('Mon profil',
             style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: _adminInk)),
         const SizedBox(height: 5),
@@ -247,7 +249,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ),
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
