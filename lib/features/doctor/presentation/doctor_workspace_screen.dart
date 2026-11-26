@@ -416,7 +416,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                 reviews.isEmpty
                     ? [
                         Text(
-                            'Note moyenne : ${profile['rating'] ?? '—'} · ${profile['reviewsCount'] ?? reviews.length} avis'),
+                            'Note moyenne : ${profile['rating'] ?? '-'} · ${profile['reviewsCount'] ?? reviews.length} avis'),
                         const Text('Vos avis récents apparaîtront ici.')
                       ]
                     : reviews
@@ -430,7 +430,6 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
           ])));
-  }
 
   Widget _section(String title, IconData icon, List<Widget> children) => Card(
       margin: const EdgeInsets.only(bottom: 12),

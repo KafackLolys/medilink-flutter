@@ -381,7 +381,7 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
                         '${details['professionalAddress'] ?? details['serviceCity'] ?? 'Secteur non renseigné'} · ${details['consultationFee'] ?? 0} ${details['currency'] ?? 'XAF'}'),
                     const SizedBox(height: 8),
                     Text(
-                        '${details['rating'] ?? '—'} ★ · ${details['reviewsCount'] ?? 0} avis'),
+                        '${details['rating'] ?? '-'} ★ · ${details['reviewsCount'] ?? 0} avis'),
                     const SizedBox(height: 16),
                     const Text(
                         'Choisissez un créneau pour envoyer une demande au médecin.'),
