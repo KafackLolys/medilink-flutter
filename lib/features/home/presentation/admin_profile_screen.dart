@@ -282,8 +282,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
   Widget _readonlyField(String value, String label, IconData icon) => Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: TextField(
-          controller: TextEditingController(text: value),
+        child: TextFormField(
+          initialValue: value,
           readOnly: true,
           decoration: _decoration(label, icon).copyWith(
             filled: true,
