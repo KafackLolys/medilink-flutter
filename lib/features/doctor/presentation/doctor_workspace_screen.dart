@@ -26,6 +26,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
       appointments = [];
   bool loading = false;
   int durationMinutes = 30;
+  Set<String> selectedModes = <String>{};
   String? error;
   final bio = TextEditingController(),
       address = TextEditingController(),
@@ -118,8 +119,13 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
       ]);
       if (results[0] is Map<String, dynamic>)
         profile = results[0] as Map<String, dynamic>;
-      if (results[1] is List<Map<String, dynamic>>)
+      if (results[1] is List<Map<String, dynamic>>) {
         modes = results[1] as List<Map<String, dynamic>>;
+        selectedModes = modes
+            .map((item) => '${item['mode'] ?? item['name'] ?? ''}'.trim())
+            .where((value) => value == 'home' || value == 'teleconsultation')
+            .toSet();
+      }
       if (results[2] is List<Map<String, dynamic>>)
         weekly = results[2] as List<Map<String, dynamic>>;
       if (results[3] is List<Map<String, dynamic>>)
@@ -245,27 +251,88 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
             ]),
             _section('Modes et durée des consultations',
                 LineAwesomeIcons.stethoscope_solid, [
-              Wrap(
-                  spacing: 8,
-                  children: ['home', 'teleconsultation'].map((m) {
-                    final enabled =
-                        modes.any((v) => v['mode'] == m || v['name'] == m);
-                    return FilterChip(
-                        label: Text(
-                            m == 'home' ? 'À domicile' : 'Téléconsultation'),
-                        selected: enabled,
-                        onSelected: (value) {
-                          final values = modes
-                              .map((v) => '${v['mode'] ?? v['name']}')
-                              .where((v) => v != 'null')
-                              .toSet();
-                          value ? values.add(m) : values.remove(m);
-                          _save(() => api.availabilitySetModes(values.toList()),
-                              'Modes mis à jour.');
-                        });
-                  }).toList()),
               const Text(
-                  'Les modes disponibles sont enregistrés sur votre profil.')
+                  'Choisissez le mode de consultation que vous souhaitez proposer. Vous pouvez accepter les deux.'),
+              const SizedBox(height: 12),
+              LayoutBuilder(builder: (context, constraints) {
+                final compact = constraints.maxWidth < 420;
+                final options = [
+                  ('home', 'À domicile', Icons.home_outlined),
+                  ('teleconsultation', 'Téléconsultation',
+                      Icons.videocam_outlined),
+                  ('both', 'Les deux', Icons.done_all),
+                ];
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: options.map((option) {
+                    final value = option.$1;
+                    final active = value == 'both'
+                        ? selectedModes.length == 2
+                        : selectedModes.length == 1 &&
+                            selectedModes.contains(value);
+                    final values = value == 'both'
+                        ? <String>{'home', 'teleconsultation'}
+                        : <String>{value};
+                    return SizedBox(
+                      width: compact
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 16) / 3,
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(() => selectedModes = values),
+                        icon: Icon(option.$3,
+                            color: active
+                                ? Theme.of(context).colorScheme.primary
+                                : null),
+                        label: Text(option.$2),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 54),
+                          foregroundColor: active
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                          backgroundColor: active
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: .10)
+                              : Colors.transparent,
+                          side: BorderSide(
+                            color: active
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).dividerColor,
+                            width: active ? 2 : 1,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              }),
+              const SizedBox(height: 8),
+              Text(
+                selectedModes.length == 2
+                    ? 'Consultations à domicile et téléconsultations acceptées.'
+                    : selectedModes.contains('home')
+                        ? 'Consultations à domicile acceptées.'
+                        : selectedModes.contains('teleconsultation')
+                            ? 'Téléconsultations acceptées.'
+                            : 'Aucun mode configuré : choisissez une option.',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: selectedModes.isEmpty
+                      ? null
+                      : () => _save(
+                          () => api.availabilitySetModes(
+                              selectedModes.toList()..sort()),
+                          'Modes de consultation enregistrés.'),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Enregistrer les modes'),
+                ),
+              ),
             ]),
             _section('Horaires hebdomadaires',
                 LineAwesomeIcons.calendar_check_solid, [
