@@ -65,6 +65,93 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
+  Widget _accountMenu({required bool doctor, required bool admin}) {
+    return PopupMenuButton<String>(
+      tooltip: 'Menu du compte',
+      onSelected: (value) async {
+        if (value == 'profile') {
+          final page = admin
+              ? AdminProfileScreen(auth: widget.auth)
+              : doctor
+                  ? const DoctorWorkspaceScreen()
+                  : PatientProfileScreen(
+                      user: Map<String, dynamic>.from(
+                          widget.auth.user ?? const {}),
+                    );
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => page),
+          );
+          if (mounted) setState(() {});
+          return;
+        }
+
+        if (value == 'logout') {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Confirmer la déconnexion'),
+              content: const Text(
+                'Voulez-vous vraiment vous déconnecter de votre compte MedLink ?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Se déconnecter'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) await widget.auth.signOut();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: [
+              const Icon(Icons.person_outline),
+              const SizedBox(width: 12),
+              Text(admin ? 'Mon profil' : 'Profil utilisateur'),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Déconnexion',
+                  style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: CircleAvatar(
+          radius: 17,
+          backgroundColor: const Color(0xffe7f2fb),
+          child: Icon(
+            admin
+                ? Icons.admin_panel_settings_outlined
+                : doctor
+                    ? Icons.medical_services_outlined
+                    : Icons.person_outline,
+            color: const Color(0xff1976d2),
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
   String? _openingConversationId;
 
   Future<void> _openNotification(Map<String, dynamic> data) async {
@@ -243,29 +330,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ],
         ),
         actions: [
-          if (!doctor)
-            IconButton(
-              tooltip: 'Profil et dossier médical',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PatientProfileScreen(
-                    user:
-                        Map<String, dynamic>.from(widget.auth.user ?? const {}),
-                  ),
-                ),
-              ),
-              icon: const Icon(LineAwesomeIcons.user_circle_solid),
-            ),
-          if (doctor)
-            IconButton(
-              tooltip: 'Profil et disponibilités',
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const DoctorWorkspaceScreen())),
-              icon: const Icon(LineAwesomeIcons.user_md_solid),
-            ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
@@ -276,17 +340,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               if (mounted) setState(() {});
             },
             icon: Badge(
-              label: Text(
-                  '${NotificationsScreen.unreadCount}'),
+              label: Text('${NotificationsScreen.unreadCount}'),
               isLabelVisible: NotificationsScreen.unreadCount > 0,
               child: const Icon(LineAwesomeIcons.bell_solid),
             ),
           ),
-          IconButton(
-            tooltip: 'Déconnexion',
-            onPressed: () => widget.auth.signOut(),
-            icon: const Icon(LineAwesomeIcons.sign_out_alt_solid),
-          ),
+          _accountMenu(doctor: doctor, admin: false),
         ],
       ),
       body: _bodyWithStartupStatus(
@@ -337,14 +396,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   if (mounted) setState(() {});
                 },
                 icon: Badge(
-                    label: Text(
-                        '${NotificationsScreen.unreadCount}'),
+                    label: Text('${NotificationsScreen.unreadCount}'),
                     isLabelVisible: NotificationsScreen.unreadCount > 0,
                     child: const Icon(LineAwesomeIcons.bell_solid))),
-            IconButton(
-                tooltip: 'Déconnexion',
-                onPressed: widget.auth.signOut,
-                icon: const Icon(LineAwesomeIcons.sign_out_alt_solid)),
+            _accountMenu(doctor: false, admin: true),
           ],
         ),
         body: _bodyWithStartupStatus(

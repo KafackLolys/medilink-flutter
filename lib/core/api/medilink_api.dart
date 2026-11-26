@@ -435,11 +435,25 @@ class MedilinkApi {
   final String _availabilitiesBase = 'availabilities/v2/me';
 
   Future<List<Map<String, dynamic>>> availabilityModes() async =>
-      _asList(await get('$_availabilitiesBase/modes'));
+      _availabilityModeRows(await get('$_availabilitiesBase/modes'));
 
   Future<List<Map<String, dynamic>>> availabilitySetModes(
           List<String> modes) async =>
-      _asList(await put('$_availabilitiesBase/modes', {'modes': modes}));
+      _availabilityModeRows(
+          await put('$_availabilitiesBase/modes', {'modes': modes}));
+
+  List<Map<String, dynamic>> _availabilityModeRows(dynamic value) {
+    if (value is! List) {
+      throw const MedilinkApiException(
+          'Réponse API inattendue pour les modes de consultation.');
+    }
+    return value.map((item) {
+      if (item is String) return <String, dynamic>{'mode': item};
+      if (item is Map) return Map<String, dynamic>.from(item);
+      throw const MedilinkApiException(
+          'Un mode de consultation renvoyé par l’API est invalide.');
+    }).toList();
+  }
 
   Future<Map<String, dynamic>> availabilityDuration() async =>
       _asMap(await get('$_availabilitiesBase/duration'));
