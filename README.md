@@ -1,6 +1,6 @@
-# MedLink Flutter
+# MediLink Flutter
 
-Application Flutter MedLink pour patients et médecins. L’authentification et les données métier passent par le backend MedLink et ses routes **`/v2`** (par exemple `auth/v2/login`, `doctors/v2`, `needs/v2`). Aucun compte ni enregistrement de démonstration n’est créé localement.
+Application Flutter MediLink pour patients et médecins. L’authentification et les données métier passent par le backend MediLink et ses routes **`/v2`** (par exemple `auth/v2/login`, `doctors/v2`, `needs/v2`). Aucun compte ni enregistrement de démonstration n’est créé localement.
 
 L'intégration API s'inspire de `medilink-mobile` (React Native) : même découpage par ressource, mais tous les appels utilisent le préfixe `v2` et sont regroupés dans `lib/core/api/medilink_api.dart` (client `MedilinkApi` singleton avec gestion de session, refresh automatique du token à la réception d'un 401 et envoi multipart).
 
@@ -53,6 +53,7 @@ Les notifications de nouveaux messages utilisent un payload FCM data-only sur An
 Le token FCM de l'appareil est enregistré sur `POST /notifications/v2/devices` après authentification et supprimé à la déconnexion. Aucune clé secrète Novu ne doit être embarquée dans l'application mobile : les déclenchements Novu doivent rester côté serveur.
 
 Pour tester sur un appareil Android réel :
+
 1. Connectez-vous avec un compte patient ou médecin et autorisez les notifications.
 2. Envoyez un message depuis l'autre compte.
 3. Testez la notification en premier plan, en arrière-plan puis après fermeture de l'application.
@@ -60,7 +61,6 @@ Pour tester sur un appareil Android réel :
 5. Contrôlez que la réponse apparaît dans la messagerie et que le compteur de messages non lus diminue.
 
 Les actions rapides nécessitent une nouvelle compilation Android (elles reposent sur le manifeste et les composants natifs).
-
 
 ## Notifications push : Flutter → API MediLink → Novu → FCM
 

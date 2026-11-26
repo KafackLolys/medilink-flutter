@@ -1,4 +1,4 @@
-# Tester MedLink sur BlueStacks
+# Tester MediLink sur BlueStacks
 
 ## Préparer Android
 
@@ -10,11 +10,11 @@ $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 flutter create --platforms=android --org com.medilink .
 ```
 
-Cette commande crée le dossier `android/` en conservant le code Flutter existant. Elle ne copie pas la configuration Firebase de `learn_flutter`, car MedLink n'utilise pas Firebase pour son API.
+Cette commande crée le dossier `android/` en conservant le code Flutter existant. Elle ne copie pas la configuration Firebase de `learn_flutter`, car MediLink n'utilise pas Firebase pour son API.
 
 ## Lancer en debug avec le serveur réel
 
-MedLink n’accepte plus de compte local et n’affiche plus d’enregistrements de démonstration. Démarrez d’abord l’API depuis `E:\Projet\Lolys\Test-IA\medilink-api` avec `npm run start:dev`. Le port configuré est `3000`. Activez ensuite ADB dans BlueStacks, sur le port `5555` détecté ici :
+MediLink n’accepte plus de compte local et n’affiche plus d’enregistrements de démonstration. Démarrez d’abord l’API depuis `E:\Projet\Lolys\Test-IA\medilink-api` avec `npm run start:dev`. Le port configuré est `3000`. Activez ensuite ADB dans BlueStacks, sur le port `5555` détecté ici :
 
 ```powershell
 .\run_bluestacks_debug.ps1
@@ -22,7 +22,7 @@ MedLink n’accepte plus de compte local et n’affiche plus d’enregistrements
 
 `10.0.2.2` désigne le PC hôte depuis l’émulateur Android. Si ce routage n’est pas disponible dans votre installation BlueStacks, remplacez cette adresse par l’adresse IPv4 du PC sur le réseau local. Le backend doit écouter sur une interface accessible et le pare-feu Windows doit autoriser son port.
 
-Vous pouvez aussi lancer la configuration **MedLink · BlueStacks debug** depuis VS Code. Elle passe `.env.json` à Flutter avec `--dart-define-from-file`.
+Vous pouvez aussi lancer la configuration **MediLink · BlueStacks debug** depuis VS Code. Elle passe `.env.json` à Flutter avec `--dart-define-from-file`.
 
 ## Pointer vers une API locale
 
@@ -31,7 +31,8 @@ Pour une autre adresse de serveur, modifiez `API_BASE_URL` dans `.env.json` et g
 ```powershell
 flutter run -d <identifiant-appareil> --dart-define-from-file=.env.json
 ```
-exemple: ```flutter run -d emulator-5554 --dart-define-from-file=.env.json```
+
+exemple: `flutter run -d emulator-5554 --dart-define-from-file=.env.json`
 
 Le trafic HTTP non chiffré est autorisé uniquement dans la configuration Android de débogage pour les essais locaux. Les versions release restent en HTTPS.
 

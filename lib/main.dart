@@ -55,5 +55,5 @@ Future<void> main() async {
 
   final auth = AuthController();
   await auth.initialize();
-  runApp(MedLinkApp(auth: auth));
+  runApp(MediLinkApp(auth: auth));
 }

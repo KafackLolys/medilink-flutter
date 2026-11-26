@@ -1,10 +1,10 @@
 name: medilink_flutter
-description: Application Flutter autonome MedLink pour patients et médecins.
-publish_to: 'none'
+description: Application Flutter autonome MediLink pour patients et médecins.
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
   flutter:

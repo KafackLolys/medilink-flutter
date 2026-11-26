@@ -7,8 +7,8 @@ import 'features/home/presentation/home_shell.dart';
 import 'core/widgets/medilink_logo_mark.dart';
 import 'core/widgets/notification_permission_gate.dart';
 
-class MedLinkApp extends StatelessWidget {
-  const MedLinkApp({super.key, required this.auth});
+class MediLinkApp extends StatelessWidget {
+  const MediLinkApp({super.key, required this.auth});
 
   final AuthController auth;
 
@@ -17,7 +17,7 @@ class MedLinkApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: auth,
       builder: (context, _) => MaterialApp(
-        title: 'MedLink',
+        title: 'MediLink',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: NotificationPermissionGate(

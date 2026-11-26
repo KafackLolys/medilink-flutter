@@ -41,7 +41,7 @@ class _HeartPulsePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Shared MedLink mark used on login and authenticated screens.
+/// Shared MediLink mark used on login and authenticated screens.
 class MedilinkLogoMark extends StatelessWidget {
   const MedilinkLogoMark({super.key, this.size = 34, this.color});
 

@@ -245,7 +245,7 @@ class MedilinkApi {
       return _decode(response.statusCode, response.body);
     } on TimeoutException {
       throw const MedilinkApiException(
-        'Le serveur MedLink ne répond pas. Vérifiez sa disponibilité et réessayez.',
+        'Le serveur MediLink ne répond pas. Vérifiez sa disponibilité et réessayez.',
       );
     } on http.ClientException {
       throw const MedilinkApiException(

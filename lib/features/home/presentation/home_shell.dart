@@ -92,7 +92,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             builder: (dialogContext) => AlertDialog(
               title: const Text('Confirmer la déconnexion'),
               content: const Text(
-                'Voulez-vous vraiment vous déconnecter de votre compte MedLink ?',
+                'Voulez-vous vraiment vous déconnecter de votre compte MediLink ?',
               ),
               actions: [
                 TextButton(
@@ -127,8 +127,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             children: [
               Icon(Icons.logout, color: Colors.red),
               SizedBox(width: 12),
-              Text('Déconnexion',
-                  style: TextStyle(color: Colors.red)),
+              Text('Déconnexion', style: TextStyle(color: Colors.red)),
             ],
           ),
         ),
@@ -165,7 +164,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final isMessagesTarget = path.contains('/messages') ||
         uri?.queryParameters['activeContent'] == 'messages';
 
-    if (isMessagesTarget && conversationId != null &&
+    if (isMessagesTarget &&
+        conversationId != null &&
         conversationId.isNotEmpty) {
       await _openConversation(conversationId);
       return;
@@ -275,7 +275,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     } catch (exception) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ouverture de la conversation impossible : $exception')),
+          SnackBar(
+              content:
+                  Text('Ouverture de la conversation impossible : $exception')),
         );
       }
     } finally {
@@ -299,18 +301,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _lastHandledPush = latest;
       final title = latest.notification?.title ??
           latest.data['title']?.toString() ??
-          'Notification MedLink';
-      final body = latest.notification?.body ??
-          latest.data['body']?.toString() ??
-          '';
+          'Notification MediLink';
+      final body =
+          latest.notification?.body ?? latest.data['body']?.toString() ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
               if (body.isNotEmpty) Text(body),
             ],
           ),
@@ -320,7 +320,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)),
+                    builder: (_) => NotificationsScreen(
+                        onNotificationTap: _openNotification)),
               );
             },
           ),
@@ -349,9 +350,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
       AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
-    final visiblePages = pages
-        .map((page) => DoctorPageBackground(child: page))
-        .toList();
+    final visiblePages =
+        pages.map((page) => DoctorPageBackground(child: page)).toList();
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
@@ -401,54 +401,61 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ),
         actions: [
           PopupMenuButton<String>(
-              tooltip: 'Compte patient',
-              icon: const Icon(LineAwesomeIcons.user_circle_solid),
-              onSelected: (value) {
-                if (value == 'profile') {
-                  if (doctor) {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => const DoctorWorkspaceScreen()));
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => DoctorPageBackground(child: PatientProfileScreen(
-                        user: Map<String, dynamic>.from(widget.auth.user ?? const {}),
-                      ))));
-                  }
-                } else if (value == 'logout') {
-                  _confirmSignOut(doctor ? 'médecin' : 'patient');
+            tooltip: 'Compte patient',
+            icon: const Icon(LineAwesomeIcons.user_circle_solid),
+            onSelected: (value) {
+              if (value == 'profile') {
+                if (doctor) {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const DoctorWorkspaceScreen()));
+                } else {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => DoctorPageBackground(
+                                  child: PatientProfileScreen(
+                                user: Map<String, dynamic>.from(
+                                    widget.auth.user ?? const {}),
+                              ))));
                 }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem<String>(
-                  value: 'profile',
-                  child: Row(
-                    children: [
-                      Icon(Icons.person_outline, color: Color(0xff2563eb)),
-                      SizedBox(width: 12),
-                      Text('Mon profil et dossier'),
-                    ],
-                  ),
+              } else if (value == 'logout') {
+                _confirmSignOut(doctor ? 'médecin' : 'patient');
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline, color: Color(0xff2563eb)),
+                    SizedBox(width: 12),
+                    Text('Mon profil et dossier'),
+                  ],
                 ),
-                PopupMenuDivider(),
-                PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout, color: Color(0xffdc2626)),
-                      SizedBox(width: 12),
-                      Text('Déconnexion'),
-                    ],
-                  ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Color(0xffdc2626)),
+                    SizedBox(width: 12),
+                    Text('Déconnexion'),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () async {
               await Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)));
+                      builder: (_) => NotificationsScreen(
+                          onNotificationTap: _openNotification)));
               if (mounted) setState(() {});
             },
             icon: Badge(
@@ -503,12 +510,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('MediLink', style: TextStyle(
-                    fontWeight: FontWeight.w900, color: Color(0xff172554),
-                    fontSize: 18, height: 1.1)),
-                Text('ADMINISTRATION', style: TextStyle(
-                    fontWeight: FontWeight.w700, color: Color(0xff64748b),
-                    fontSize: 9, letterSpacing: 1.1)),
+                Text('MediLink',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xff172554),
+                        fontSize: 18,
+                        height: 1.1)),
+                Text('ADMINISTRATION',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xff64748b),
+                        fontSize: 9,
+                        letterSpacing: 1.1)),
               ],
             ),
           ]),
@@ -519,7 +532,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)));
+                          builder: (_) => NotificationsScreen(
+                              onNotificationTap: _openNotification)));
                   if (mounted) setState(() {});
                 },
                 icon: Badge(
@@ -609,7 +623,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
   }
 }
-
 
 class _HeartPulseBrandMark extends StatelessWidget {
   const _HeartPulseBrandMark();

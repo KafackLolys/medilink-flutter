@@ -14,8 +14,8 @@ import '../config/app_environment.dart';
 
 const _notificationChannel = AndroidNotificationChannel(
   'medilink_notifications',
-  'Notifications MedLink',
-  description: 'Messages et notifications de votre compte MedLink',
+  'Notifications MediLink',
+  description: 'Messages et notifications de votre compte MediLink',
   importance: Importance.high,
 );
 
@@ -79,7 +79,9 @@ String _notificationIconForType(dynamic rawType) {
   if (type.contains('proposal') || type.contains('offer')) {
     return 'ic_stat_proposal';
   }
-  if (type.contains('appointment') || type.contains('rendez_vous') || type.contains('rendezvous')) {
+  if (type.contains('appointment') ||
+      type.contains('rendez_vous') ||
+      type.contains('rendezvous')) {
     if (type.contains('cancel') || type.contains('reject')) {
       return 'ic_stat_appointment_cancelled';
     }
@@ -101,7 +103,7 @@ Future<void> _showRemoteNotification(
   final data = Map<String, dynamic>.from(message.data);
   final title = message.notification?.title ??
       data['title']?.toString() ??
-      'Notification MedLink';
+      'Notification MediLink';
   final body = message.notification?.body ?? data['body']?.toString() ?? '';
   final conversationId = data['conversationId']?.toString();
   final notificationIcon = _notificationIconForType(data['type']);
@@ -198,7 +200,8 @@ Future<http.Response> _authenticatedActionRequest({
   required String path,
   Object? body,
 }) async {
-  final base = AppEnvironment.apiBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+  final base =
+      AppEnvironment.apiBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
   if (base.isEmpty) throw StateError('API_BASE_URL non configurée.');
 
   final saved = await _secureStorage.read(key: _sessionStorageKey);
@@ -246,8 +249,7 @@ Future<http.Response> _authenticatedActionRequest({
       )
       .timeout(const Duration(seconds: 12));
 
-  if (refreshResponse.statusCode < 200 ||
-      refreshResponse.statusCode >= 300) {
+  if (refreshResponse.statusCode < 200 || refreshResponse.statusCode >= 300) {
     return response;
   }
 
@@ -309,8 +311,7 @@ Future<void> _handleNotificationActionInBackground(
     if (notificationId != null && notificationId.isNotEmpty) {
       await _authenticatedActionRequest(
         method: 'PATCH',
-        path:
-            'notifications/v2/${Uri.encodeComponent(notificationId)}/read',
+        path: 'notifications/v2/${Uri.encodeComponent(notificationId)}/read',
         body: const {},
       );
     }
@@ -391,7 +392,8 @@ class PushNotificationService extends ChangeNotifier {
       token = await _messaging.getToken(
         vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
       );
-      debugPrint('[FCM] Registration token available: ${token?.isNotEmpty == true}');
+      debugPrint(
+          '[FCM] Registration token available: ${token?.isNotEmpty == true}');
 
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         token = newToken;
@@ -423,8 +425,8 @@ class PushNotificationService extends ChangeNotifier {
         notifyListeners();
       });
 
-      _openedSubscription =
-          FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteMessageOpened);
+      _openedSubscription = FirebaseMessaging.onMessageOpenedApp
+          .listen(_handleRemoteMessageOpened);
       final initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) _handleRemoteMessageOpened(initialMessage);
 
@@ -506,7 +508,8 @@ class PushNotificationService extends ChangeNotifier {
 
   Future<String> _getDeviceId() async {
     final existing = await _secureStorage.read(key: _deviceStorageKey);
-    if (existing != null && RegExp(r'^[A-Za-z0-9_-]{16,100}$').hasMatch(existing)) {
+    if (existing != null &&
+        RegExp(r'^[A-Za-z0-9_-]{16,100}$').hasMatch(existing)) {
       return existing;
     }
     final random = Random.secure();
@@ -538,10 +541,12 @@ class PushNotificationService extends ChangeNotifier {
       );
       registeredWithBackend = true;
       error = null;
-      debugPrint('[FCM] Device token successfully registered with MediLink API.');
+      debugPrint(
+          '[FCM] Device token successfully registered with MediLink API.');
     } catch (exception) {
       registeredWithBackend = false;
-      error = 'Enregistrement du token FCM auprès de Novu impossible : $exception';
+      error =
+          'Enregistrement du token FCM auprès de Novu impossible : $exception';
       debugPrint('[FCM] Device registration failed: $exception');
     }
     notifyListeners();

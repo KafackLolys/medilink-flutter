@@ -68,12 +68,12 @@ class AuthController extends ChangeNotifier {
 
   String _formatStartupError(Object exception) {
     if (!MedilinkApi.instance.isConfigured) {
-      return 'Le serveur MedLink n’est pas configuré. Vérifiez API_BASE_URL dans .env.json.';
+      return 'Le serveur MediLink n’est pas configuré. Vérifiez API_BASE_URL dans .env.json.';
     }
     if (exception is MedilinkApiException) {
       final status = exception.statusCode;
       if (status != null && status >= 500) {
-        return 'Le serveur MedLink est momentanément indisponible. Réessayez dans quelques instants.';
+        return 'Le serveur MediLink est momentanément indisponible. Réessayez dans quelques instants.';
       }
       if (status == 403) {
         return 'Le serveur a refusé l’accès à ce compte. Vérifiez son statut et ses autorisations.';
@@ -82,10 +82,10 @@ class AuthController extends ChangeNotifier {
         return 'Votre session a expiré. Connectez-vous à nouveau.';
       }
       if (status == null) {
-        return 'Impossible de joindre le serveur MedLink. Vérifiez le démarrage du backend et la connexion réseau.';
+        return 'Impossible de joindre le serveur MediLink. Vérifiez le démarrage du backend et la connexion réseau.';
       }
     }
-    return 'La connexion au serveur MedLink a échoué. Réessayez dans quelques instants.';
+    return 'La connexion au serveur MediLink a échoué. Réessayez dans quelques instants.';
   }
 
   Future<void> updateUserProfile(Map<String, dynamic> updatedUser) async {
@@ -115,7 +115,7 @@ class AuthController extends ChangeNotifier {
 
       if (!MedilinkApi.instance.isConfigured) {
         throw const MedilinkApiException(
-          'Le service MedLink n’est pas configuré. Définissez API_BASE_URL.',
+          'Le service MediLink n’est pas configuré. Définissez API_BASE_URL.',
         );
       }
       final session = await MedilinkApi.instance.login(emailValue, password);
@@ -162,7 +162,7 @@ class AuthController extends ChangeNotifier {
 
       if (!MedilinkApi.instance.isConfigured) {
         throw const MedilinkApiException(
-          'Le service MedLink n’est pas configuré. Définissez API_BASE_URL.',
+          'Le service MediLink n’est pas configuré. Définissez API_BASE_URL.',
         );
       }
       await MedilinkApi.instance.register(data);
@@ -178,7 +178,7 @@ class AuthController extends ChangeNotifier {
   Future<Map<String, dynamic>?> googleStatus(String idToken) async {
     if (!MedilinkApi.instance.isConfigured) {
       throw const MedilinkApiException(
-        'Le service MedLink n’est pas configuré. Définissez API_BASE_URL.',
+        'Le service MediLink n’est pas configuré. Définissez API_BASE_URL.',
       );
     }
     return MedilinkApi.instance.googleStatus(idToken);
@@ -247,7 +247,7 @@ class AuthController extends ChangeNotifier {
     try {
       if (!MedilinkApi.instance.isConfigured) {
         throw const MedilinkApiException(
-          'Le service MedLink n’est pas configuré. Définissez API_BASE_URL.',
+          'Le service MediLink n’est pas configuré. Définissez API_BASE_URL.',
         );
       }
       await MedilinkApi.instance.resetPassword(email.trim());

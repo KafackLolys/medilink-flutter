@@ -16,7 +16,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   if (payload.notification) return;
   const data = payload.data || {};
-  const title = data.title || 'Notification MedLink';
+  const title = data.title || 'Notification MediLink';
   const options = {
     body: data.body || '',
     icon: '/icons/Icon-192.png',
