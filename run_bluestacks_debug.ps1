@@ -23,4 +23,8 @@ if (-not (Test-Path $envFile)) {
 
 
 & $adb connect 127.0.0.1:5555
-& $flutterCommand.Source run -d emulator-5554 --dart-define-from-file=.env.json
+$deviceId = (& $adb devices | Select-String -Pattern '^(emulator-\d+|127\.0\.0\.1:\d+)\s+device$' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -First 1)
+if (-not $deviceId) {
+  throw 'Aucun appareil BlueStacks détecté par ADB. Vérifiez que BlueStacks est lancé et que ADB est activé dans ses paramètres.'
+}
+& $flutterCommand.Source run -d $deviceId --dart-define-from-file=.env.json

@@ -394,6 +394,9 @@ class PushNotificationService extends ChangeNotifier {
       );
       debugPrint(
           '[FCM] Registration token available: ${token?.isNotEmpty == true}');
+      if (token != null && token!.isNotEmpty) {
+        debugPrint('[FCM] Token value: ${token!.substring(0, 20)}...');
+      }
 
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         token = newToken;
@@ -443,6 +446,12 @@ class PushNotificationService extends ChangeNotifier {
       initialized = true;
       error = null;
       notifyListeners();
+
+      // Enregistrer le token FCM dès l'initialisation, même si l'utilisateur
+      // n'est pas encore authentifié. Si aucune session n'est active, le
+      // backend rejettera proprement et registerAuthenticatedDevice()
+      // retentera après connexion.
+      await _registerToken();
     } catch (exception) {
       error = 'Initialisation FCM impossible : $exception';
       notifyListeners();
@@ -521,8 +530,7 @@ class PushNotificationService extends ChangeNotifier {
   }
 
   Future<void> _registerToken() async {
-    if (!MedilinkApi.instance.isConfigured ||
-        !MedilinkApi.instance.isAuthenticated) {
+    if (!MedilinkApi.instance.isConfigured) {
       registeredWithBackend = false;
       return;
     }
@@ -534,6 +542,8 @@ class PushNotificationService extends ChangeNotifier {
 
     try {
       final deviceId = await _getDeviceId();
+      debugPrint(
+          '[FCM] Registering device: deviceId=$deviceId, token=${token!.substring(0, 20)}...');
       await MedilinkApi.instance.notificationRegisterDevice(
         deviceId: deviceId,
         token: token!,
