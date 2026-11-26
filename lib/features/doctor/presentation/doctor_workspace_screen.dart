@@ -595,6 +595,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
             const SizedBox(height: 12),
             ...children
           ]),
+    );
   Widget _field(TextEditingController c, String label,
           {bool numeric = false, int lines = 1}) =>
       Padding(
