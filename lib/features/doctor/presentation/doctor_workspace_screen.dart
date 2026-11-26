@@ -429,7 +429,9 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                                 '${r['rating'] ?? ''}/5 · ${r['patientName'] ?? r['patient'] ?? 'Patient'}'),
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
-          ]));
+          ])));
+  }
+
   Widget _section(String title, IconData icon, List<Widget> children) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
