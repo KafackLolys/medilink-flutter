@@ -123,7 +123,9 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
             'Refusé',
             'Absent'
           ];
-    return ListView(
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
           Text(widget.doctor ? 'Mon agenda' : 'Mes rendez-vous',
@@ -207,7 +209,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   ));
             }),
           const SizedBox(height: 8),
-        ]);
+        ]));
   }
 
   void _showDetail(
