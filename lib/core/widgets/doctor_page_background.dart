@@ -7,7 +7,22 @@ class DoctorPageBackground extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Stack(
+  Widget build(BuildContext context) => Theme(
+        data: Theme.of(context).copyWith(
+          scaffoldBackgroundColor: Colors.transparent,
+          appBarTheme: Theme.of(context).appBarTheme.copyWith(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            foregroundColor: const Color(0xff172554),
+            elevation: 0,
+            titleTextStyle: const TextStyle(
+              color: Color(0xff172554),
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        child: Stack(
         fit: StackFit.expand,
         children: [
           const DecoratedBox(
@@ -15,19 +30,19 @@ class DoctorPageBackground extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xfff4fbff), Color(0xfff7fcfb), Color(0xfff8faff)],
+                colors: [Color(0xfff5f7fc), Color(0xfff8faff), Color(0xfff1f6ff)],
               ),
             ),
           ),
           const Positioned(
             top: -82,
             right: -72,
-            child: _SoftOrb(size: 230, color: Color(0x1e61c6d5)),
+            child: _SoftOrb(size: 230, color: Color(0x2463a5f5)),
           ),
           const Positioned(
             bottom: 90,
             left: -110,
-            child: _SoftOrb(size: 210, color: Color(0x1c83b8f2)),
+            child: _SoftOrb(size: 210, color: Color(0x1c2563eb)),
           ),
           const Positioned(
             top: 24,
@@ -42,6 +57,7 @@ class DoctorPageBackground extends StatelessWidget {
           ),
           child,
         ],
+      ),
       );
 }
 
@@ -86,7 +102,7 @@ class _MedicalLinePainter extends CustomPainter {
     canvas.drawCircle(
       Offset(size.width * .5, size.height * .5),
       size.width * .48,
-      paint..color = const Color(0x1670a9c7),
+      paint..color = const Color(0x192563eb),
     );
   }
 
