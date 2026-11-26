@@ -307,7 +307,7 @@ class _AdminAccountsScreenState extends State<AdminAccountsScreen> {
     final status = '${account['status'] ?? 'pending'}';
     final verification = '${account['verificationStatus'] ?? 'pending'}';
     final name = '${account['firstName'] ?? ''} ${account['lastName'] ?? ''}'.trim();
-    final initials = name.split(RegExp(r'\\s+')).where((part) => part.isNotEmpty)
+    final initials = name.split(RegExp(r'\s+')).where((part) => part.isNotEmpty)
         .take(2).map((part) => part[0].toUpperCase()).join();
     return Container(
       margin: const EdgeInsets.only(top: 10),
