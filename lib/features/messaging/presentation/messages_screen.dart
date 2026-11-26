@@ -69,8 +69,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (socket == null) return;
     socket.off('conversation:updated', _onConversationUpdated);
     socket.off('conversation:read', _onConversationRead);
+    socket.off('connection:ready');
     socket.on('conversation:updated', _onConversationUpdated);
     socket.on('conversation:read', _onConversationRead);
+    socket.on('connection:ready', (_) => _load());
     socket.on('connect', (_) => _load());
   }
 
@@ -159,12 +161,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   leading: CircleAvatar(
-                      backgroundColor: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary).withOpacity(.1),
+                      backgroundColor: (widget.doctor
+                              ? const Color(0xff2563eb)
+                              : AppTheme.primary)
+                          .withOpacity(.1),
                       child: Icon(
                           widget.doctor
                               ? LineAwesomeIcons.user_circle
                               : LineAwesomeIcons.stethoscope_solid,
-                          color: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary))),
+                          color: (widget.doctor
+                              ? const Color(0xff2563eb)
+                              : AppTheme.primary))),
                   title: Row(children: [
                     Expanded(
                         child: Text(name,
@@ -173,7 +180,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     if (unread > 0)
                       CircleAvatar(
                           radius: 11,
-                          backgroundColor: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary),
+                          backgroundColor: (widget.doctor
+                              ? const Color(0xff2563eb)
+                              : AppTheme.primary),
                           child: Text('$unread',
                               style: const TextStyle(
                                   color: Colors.white, fontSize: 11)))
@@ -234,7 +243,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     // Reconcile retries as well as first sends. A server event is
     // authoritative even if the HTTP response subsequently times out.
     final pendingIndex = messages.indexWhere((m) =>
-        m['clientMessageId']?.toString() == item['clientMessageId']?.toString() &&
+        m['clientMessageId']?.toString() ==
+            item['clientMessageId']?.toString() &&
         item['clientMessageId'] != null);
     setState(() {
       final confirmed = {
@@ -252,7 +262,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
     if (item['senderUserId']?.toString() != currentUserId) {
       MedilinkApi.instance
-          .conversationMarkRead(widget.conversation['id'].toString());
+          .conversationMarkRead(widget.conversation['id'].toString())
+          .catchError((_) => <String, dynamic>{});
     }
   }
 
@@ -288,9 +299,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (socket == null) return;
     socket.off('message:new', _onSocketMessage);
     socket.off('message:read', _onSocketRead);
+    socket.off('connection:ready');
     socket.on('message:new', _onSocketMessage);
     socket.on('message:read', _onSocketRead);
-    socket.on('connect', (_) {
+    socket.on('connection:ready', (_) {
       messagingSocket.joinConversation(widget.conversation['id'].toString());
       _loadMessages();
     });
@@ -329,8 +341,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
       }
       messages = loaded;
       apiError = null;
-      await MedilinkApi.instance
-          .conversationMarkRead(widget.conversation['id'].toString());
     } catch (exception) {
       apiError = exception.toString();
     } finally {
@@ -351,16 +361,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _createClientMessageId() {
     final random = Random.secure();
     final suffix = List<int>.generate(16, (_) => random.nextInt(256))
-        .map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
     return '${DateTime.now().microsecondsSinceEpoch}-$suffix';
   }
 
   Future<void> send() async {
     final text = controller.text.trim();
     if (text.isEmpty || sending) return;
+    final clientMessageId = _createClientMessageId();
     final pending = {
-      'id': 'pending-${_createClientMessageId()}',
-      'clientMessageId': _createClientMessageId(),
+      'id': 'pending-$clientMessageId',
+      'clientMessageId': clientMessageId,
       'senderId': currentUserId,
       'content': text,
       'createdAt': DateTime.now().toIso8601String(),
@@ -376,14 +388,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Future<void> _sendPending(Map<String, dynamic> pending) async {
     if (sending) return;
     final clientMessageId = pending['clientMessageId'].toString();
+    final conversationId = widget.conversation['id'].toString();
     setState(() {
       sending = true;
-      final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
-      if (index >= 0) messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
+      final index =
+          messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+      if (index >= 0)
+        messages[index] = {...messages[index], 'deliveryStatus': 'sending'};
     });
     try {
       final sent = await MedilinkApi.instance.messageSend(
-        widget.conversation['id'].toString(),
+        conversationId,
         pending['content'].toString(),
         clientMessageId: clientMessageId,
       );
@@ -396,20 +411,65 @@ class _ConversationScreenState extends State<ConversationScreen> {
         'deliveryStatus': 'sent',
       };
       setState(() {
-        final pendingIndex = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
-        final confirmedIndex = messages.indexWhere((m) => m['id'] == item['id']);
+        final pendingIndex =
+            messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+        final confirmedIndex =
+            messages.indexWhere((m) => m['id'] == item['id']);
         if (pendingIndex >= 0) {
           messages[pendingIndex] = item;
-          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) messages.removeAt(confirmedIndex);
+          if (confirmedIndex >= 0 && confirmedIndex != pendingIndex)
+            messages.removeAt(confirmedIndex);
         } else if (confirmedIndex < 0) {
           messages.add(item);
         }
         sending = false;
       });
     } catch (exception) {
+      // The server may have persisted the message even if the HTTP response
+      // timed out or failed afterwards. Reconcile from the conversation API
+      // before marking the message as failed.
+      try {
+        final refreshed =
+            await MedilinkApi.instance.conversationMessages(conversationId);
+        final raw = refreshed['items'];
+        if (raw is List) {
+          final match = raw.whereType<Map>().cast<Map>().where(
+              (row) => row['clientMessageId']?.toString() == clientMessageId);
+          if (match.isNotEmpty) {
+            final row = Map<String, dynamic>.from(match.first);
+            final confirmed = {
+              ...row,
+              'senderId': row['senderUserId'],
+              'content': row['body'],
+              'createdAt': row['sentAt'],
+              'deliveryStatus': 'sent',
+            };
+            if (!mounted) return;
+            setState(() {
+              final pendingIndex = messages
+                  .indexWhere((m) => m['clientMessageId'] == clientMessageId);
+              final confirmedIndex =
+                  messages.indexWhere((m) => m['id'] == confirmed['id']);
+              if (pendingIndex >= 0) {
+                messages[pendingIndex] = confirmed;
+                if (confirmedIndex >= 0 && confirmedIndex != pendingIndex) {
+                  messages.removeAt(confirmedIndex);
+                }
+              } else if (confirmedIndex < 0) {
+                messages.add(confirmed);
+              }
+              sending = false;
+            });
+            return;
+          }
+        }
+      } catch (_) {
+        // Keep the original error and failed state if reconciliation fails.
+      }
       if (!mounted) return;
       setState(() {
-        final index = messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
+        final index =
+            messages.indexWhere((m) => m['clientMessageId'] == clientMessageId);
         // A real-time confirmation may arrive even if the HTTP response times out.
         if (index >= 0 && messages[index]['deliveryStatus'] != 'sent') {
           messages[index] = {...messages[index], 'deliveryStatus': 'failed'};
@@ -417,7 +477,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
         sending = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Envoi non confirmé : $exception. Vous pouvez réessayer sans créer de doublon.')),
+        SnackBar(
+            content: Text(
+                'Envoi non confirmé : $exception. Vous pouvez réessayer sans créer de doublon.')),
       );
     }
   }
@@ -472,36 +534,57 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 11),
                         decoration: BoxDecoration(
-                            color: mine ? (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary) : Colors.white,
+                            color: mine
+                                ? (widget.doctor
+                                    ? const Color(0xff2563eb)
+                                    : AppTheme.primary)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(18).copyWith(
                                 bottomRight:
                                     mine ? const Radius.circular(4) : null,
                                 bottomLeft:
                                     mine ? null : const Radius.circular(4))),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text(message['content'].toString(),
-                            style: TextStyle(
-                                color:
-                                    mine ? Colors.white : AppTheme.textPrimary,
-                                height: 1.35)),
-                          if (message['deliveryStatus'] == 'sending' || message['deliveryStatus'] == 'failed')
-                            Padding(
-                              padding: const EdgeInsets.only(top: 5),
-                              child: message['deliveryStatus'] == 'failed'
-                                  ? TextButton.icon(
-                                      onPressed: sending ? null : () => _retryMessage(message),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: mine ? Colors.white : const Color(0xffb45309),
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: const Size(0, 28),
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      icon: const Icon(Icons.refresh_rounded, size: 14),
-                                      label: const Text('Échec · Réessayer', style: TextStyle(fontSize: 11)),
-                                    )
-                                  : Text('Envoi…', style: TextStyle(color: mine ? Colors.white70 : AppTheme.textSecondary, fontSize: 10)),
-                            ),
-                        ]),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(message['content'].toString(),
+                                  style: TextStyle(
+                                      color: mine
+                                          ? Colors.white
+                                          : AppTheme.textPrimary,
+                                      height: 1.35)),
+                              if (message['deliveryStatus'] == 'sending' ||
+                                  message['deliveryStatus'] == 'failed')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 5),
+                                  child: message['deliveryStatus'] == 'failed'
+                                      ? TextButton.icon(
+                                          onPressed: sending
+                                              ? null
+                                              : () => _retryMessage(message),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: mine
+                                                ? Colors.white
+                                                : const Color(0xffb45309),
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 28),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          icon: const Icon(
+                                              Icons.refresh_rounded,
+                                              size: 14),
+                                          label: const Text('Échec · Réessayer',
+                                              style: TextStyle(fontSize: 11)),
+                                        )
+                                      : Text('Envoi…',
+                                          style: TextStyle(
+                                              color: mine
+                                                  ? Colors.white70
+                                                  : AppTheme.textSecondary,
+                                              fontSize: 10)),
+                                ),
+                            ]),
                       ));
                 })),
         SafeArea(
