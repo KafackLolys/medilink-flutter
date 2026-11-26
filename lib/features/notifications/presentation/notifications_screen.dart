@@ -109,7 +109,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _handleNotificationTap(Map<String, dynamic> row) async {
     await _markRead(row);
     if (!mounted) return;
-    await widget.onNotificationTap?.call(row);
+    final onNotificationTap = widget.onNotificationTap;
+    if (onNotificationTap == null) return;
+    Navigator.of(context).pop();
+    await onNotificationTap(row);
   }
 
   Future<void> _markRead(Map<String, dynamic> row) async {
