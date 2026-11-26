@@ -263,9 +263,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
       AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
-    final visiblePages = doctor
-        ? pages.map((page) => DoctorPageBackground(child: page)).toList()
-        : pages;
+    final visiblePages = pages
+        .map((page) => DoctorPageBackground(child: page))
+        .toList();
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
@@ -277,41 +277,31 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       LineAwesomeIcons.calendar_alt_solid,
     ];
     return Scaffold(
-      backgroundColor: doctor ? const Color(0xfff5f7fc) : null,
+      backgroundColor: const Color(0xfff5f7fc),
       appBar: AppBar(
-        backgroundColor: doctor ? Colors.white : null,
-        surfaceTintColor: doctor ? Colors.transparent : null,
-        elevation: doctor ? 0 : null,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Row(
           children: [
-            if (doctor)
-              const _HeartPulseBrandMark()
-            else
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xffe7f2fb),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const MedilinkLogoMark(size: 20),
-              ),
+            const _HeartPulseBrandMark(),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  doctor ? 'MediLink' : 'MedLink',
+                  'MediLink',
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: doctor ? const Color(0xff172554) : null,
-                    fontSize: doctor ? 18 : null,
+                    color: const Color(0xff172554),
+                    fontSize: 18,
                     height: 1.1,
                   ),
                 ),
-                if (doctor)
-                  const Text(
-                    'ESPACE MÉDECIN',
+                if (doctor || widget.auth.role == 'patient')
+                  Text(
+                    doctor ? 'ESPACE MÉDECIN' : 'ESPACE PATIENT',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: Color(0xff64748b),
@@ -325,33 +315,22 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ),
         actions: [
           if (!doctor)
-            IconButton(
-              tooltip: 'Profil et dossier médical',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PatientProfileScreen(
-                    user:
-                        Map<String, dynamic>.from(widget.auth.user ?? const {}),
-                  ),
-                ),
-              ),
-              icon: const Icon(LineAwesomeIcons.user_circle_solid),
-            ),
-          if (doctor)
             PopupMenuButton<String>(
-              tooltip: 'Compte médecin',
+              tooltip: 'Compte patient',
               icon: const Icon(LineAwesomeIcons.user_circle_solid),
               onSelected: (value) {
                 if (value == 'profile') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DoctorWorkspaceScreen(),
-                    ),
-                  );
+                  if (doctor) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const DoctorWorkspaceScreen()));
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => DoctorPageBackground(child: PatientProfileScreen(
+                        user: Map<String, dynamic>.from(widget.auth.user ?? const {}),
+                      ))));
+                  }
                 } else if (value == 'logout') {
-                  _confirmDoctorSignOut();
+                  _confirmSignOut(doctor ? 'médecin' : 'patient');
                 }
               },
               itemBuilder: (context) => const [
@@ -361,7 +340,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                     children: [
                       Icon(Icons.person_outline, color: Color(0xff2563eb)),
                       SizedBox(width: 12),
-                      Text('Mon profil'),
+                      Text('Mon profil et dossier'),
                     ],
                   ),
                 ),
@@ -377,12 +356,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   ),
                 ),
               ],
-            ),
-          if (!doctor)
-            IconButton(
-              tooltip: 'Déconnexion',
-              onPressed: () => widget.auth.signOut(),
-              icon: const Icon(LineAwesomeIcons.sign_out_alt_solid),
             ),
           IconButton(
             tooltip: 'Notifications',
@@ -406,9 +379,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         IndexedStack(index: selected, children: visiblePages),
       ),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: doctor ? Colors.white : null,
-        surfaceTintColor: doctor ? Colors.transparent : null,
-        indicatorColor: doctor ? const Color(0xffeaf1ff) : null,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: const Color(0xffeaf1ff),
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
           selected = v;
@@ -497,13 +470,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             ]),
       );
 
-  Future<void> _confirmDoctorSignOut() async {
+  Future<void> _confirmSignOut(String role) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmer la déconnexion'),
         content: const Text(
-          'Voulez-vous vraiment vous déconnecter de votre compte médecin ?',
+          'Voulez-vous vraiment vous déconnecter de votre compte $role ?',
         ),
         actions: [
           TextButton(
