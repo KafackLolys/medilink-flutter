@@ -18,7 +18,6 @@ import '../../doctor/presentation/doctor_workspace_screen.dart';
 import 'dashboard_screen.dart';
 import 'admin_accounts_screen.dart';
 import 'admin_profile_screen.dart';
-import '../../../core/widgets/medilink_logo_mark.dart';
 import '../../../core/widgets/doctor_page_background.dart';
 
 class HomeShell extends StatefulWidget {
@@ -314,8 +313,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ],
         ),
         actions: [
-          if (!doctor)
-            PopupMenuButton<String>(
+          PopupMenuButton<String>(
               tooltip: 'Compte patient',
               icon: const Icon(LineAwesomeIcons.user_circle_solid),
               onSelected: (value) {
@@ -475,7 +473,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmer la déconnexion'),
-        content: const Text(
+        content: Text(
           'Voulez-vous vraiment vous déconnecter de votre compte $role ?',
         ),
         actions: [
