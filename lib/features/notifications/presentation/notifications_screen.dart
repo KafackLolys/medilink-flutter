@@ -6,7 +6,9 @@ import '../../../core/data/live_state.dart';
 import '../../../core/theme/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.onNotificationTap});
+
+  final Future<void> Function(Map<String, dynamic> notification)? onNotificationTap;
 
   static int _unreadCount = 0;
   static int get unreadCount => _unreadCount;
@@ -104,6 +106,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  Future<void> _handleNotificationTap(Map<String, dynamic> row) async {
+    await _markRead(row);
+    if (!mounted) return;
+    final onNotificationTap = widget.onNotificationTap;
+    if (onNotificationTap == null) return;
+    Navigator.of(context).pop();
+    await onNotificationTap(row);
+  }
+
   Future<void> _markRead(Map<String, dynamic> row) async {
     if (row['isRead'] == true) return;
     try {
@@ -179,7 +190,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ? const Icon(LineAwesomeIcons.circle_solid,
                                 size: 9, color: AppTheme.primary)
                             : null,
-                        onTap: () => _markRead(row),
+                        onTap: () => _handleNotificationTap(row),
                       ));
                 }),
               if (MedilinkApi.instance.isConfigured && page < totalPages)

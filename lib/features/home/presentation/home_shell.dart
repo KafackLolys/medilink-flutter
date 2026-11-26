@@ -161,31 +161,80 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final conversationId = data['conversationId']?.toString() ??
         uri?.queryParameters['conversation'];
 
-    if (type == 'new_message' && conversationId != null &&
+    final path = uri?.path ?? '';
+    final isMessagesTarget = path.contains('/messages') ||
+        uri?.queryParameters['activeContent'] == 'messages';
+
+    if (isMessagesTarget && conversationId != null &&
         conversationId.isNotEmpty) {
       await _openConversation(conversationId);
       return;
     }
 
     if (!mounted) return;
+
+    // Les targetUrl sont les mêmes chemins internes que ceux utilisés sur le Web.
+    // On les interprète localement : aucun navigateur externe n'est ouvert.
+    if (path.startsWith('/medecin/besoins')) {
+      setState(() {
+        selected = 1;
+        needsRefresh++;
+      });
+      return;
+    }
+    if (path.startsWith('/patient/demandes')) {
+      setState(() {
+        selected = 2;
+        needsRefresh++;
+      });
+      return;
+    }
+    if (path.contains('/rendez-vous')) {
+      setState(() {
+        selected = 4;
+        appointmentRefresh++;
+      });
+      return;
+    }
+    if (isMessagesTarget) {
+      setState(() {
+        selected = 3;
+        messagesRefresh++;
+      });
+      return;
+    }
+
     switch (type) {
       case 'appointment_updated':
-        setState(() => selected = 4);
+        setState(() {
+          selected = 4;
+          appointmentRefresh++;
+        });
         break;
       case 'proposal_received':
-        setState(() => selected = widget.auth.role == 'doctor' ? 2 : 1);
+        setState(() {
+          selected = 2;
+          if (widget.auth.role == 'doctor') {
+            proposalsRefresh++;
+          } else {
+            needsRefresh++;
+          }
+        });
         break;
       case 'proposal_accepted':
-        setState(() => selected = widget.auth.role == 'doctor' ? 2 : 4);
+        setState(() {
+          selected = 4;
+          appointmentRefresh++;
+        });
         break;
       case 'relevant_need':
-        setState(() => selected = widget.auth.role == 'doctor' ? 1 : 2);
+        setState(() {
+          selected = widget.auth.role == 'doctor' ? 1 : 2;
+          needsRefresh++;
+        });
         break;
       default:
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-        );
+        setState(() => selected = 0);
     }
   }
 
@@ -271,7 +320,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const NotificationsScreen()),
+                    builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)),
               );
             },
           ),
@@ -336,7 +385,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               await Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const NotificationsScreen()));
+                      builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)));
               if (mounted) setState(() {});
             },
             icon: Badge(
@@ -392,7 +441,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const NotificationsScreen()));
+                          builder: (_) => NotificationsScreen(onNotificationTap: _openNotification)));
                   if (mounted) setState(() {});
                 },
                 icon: Badge(
