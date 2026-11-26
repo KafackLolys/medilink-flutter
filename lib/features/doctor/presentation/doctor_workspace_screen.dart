@@ -442,7 +442,6 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
           ]))));
-  }
 
   Widget _profilePhotoCard() => Container(
         padding: const EdgeInsets.all(18),
