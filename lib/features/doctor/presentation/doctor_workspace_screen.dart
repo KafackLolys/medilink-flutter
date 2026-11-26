@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/medilink_api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/doctor_page_background.dart';
 
 /// Espace professionnel : profil, vérification, disponibilités, zone et avis.
 class DoctorWorkspaceScreen extends StatefulWidget {
@@ -177,8 +178,9 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
+  Widget build(BuildContext context) => DoctorPageBackground(
+    child: Material(
+      color: Colors.transparent,
       child: RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -571,12 +573,17 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
     }
   }
 
-  Widget _section(String title, IconData icon, List<Widget> children) => Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-          padding: const EdgeInsets.all(16),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _section(String title, IconData icon, List<Widget> children) => Container(
+      margin: const EdgeInsets.only(bottom: 13),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xffe2edf4)),
+        boxShadow: const [BoxShadow(color: Color(0x0b244b63), blurRadius: 18, offset: Offset(0, 6))],
+      ),
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Icon(icon, color: AppTheme.primary),
               const SizedBox(width: 10),
@@ -587,7 +594,7 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
             ]),
             const SizedBox(height: 12),
             ...children
-          ])));
+          ]),
   Widget _field(TextEditingController c, String label,
           {bool numeric = false, int lines = 1}) =>
       Padding(
