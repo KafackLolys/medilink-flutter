@@ -169,7 +169,9 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => RefreshIndicator(
+  Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Widget build(BuildContext context)) => RefreshIndicator(
       onRefresh: _load,
       child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
