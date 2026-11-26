@@ -329,7 +329,7 @@ class _AuthSoftBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CustomPaint(
-        painter: _AuthBackgroundPainter(),
+        foregroundPainter: _AuthBackgroundPainter(),
         child: const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
