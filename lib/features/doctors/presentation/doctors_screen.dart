@@ -124,7 +124,9 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
       city != 'Toutes',
       mode != 'Tous'
     ].where((active) => active).length;
-    return ListView(
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
       children: [
         Text('Trouver un médecin',
@@ -193,7 +195,7 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
         else
           ...doctors.map(_doctorCard),
       ],
-    );
+    ));
   }
 
   Widget _doctorCard(Map<String, dynamic> doctor) {
