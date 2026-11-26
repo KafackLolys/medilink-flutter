@@ -126,7 +126,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         break;
       case 'proposal_received':
         setState(() {
-          selected = widget.auth.role == 'doctor' ? 2 : 2;
+          selected = 2;
           if (widget.auth.role == 'doctor') {
             proposalsRefresh++;
           } else {
@@ -147,12 +147,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         });
         break;
       default:
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => NotificationsScreen(onNotificationTap: _openNotification),
-          ),
-        );
+        setState(() => selected = 0);
     }
   }
 
