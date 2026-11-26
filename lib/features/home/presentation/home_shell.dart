@@ -19,6 +19,7 @@ import 'dashboard_screen.dart';
 import 'admin_accounts_screen.dart';
 import 'admin_profile_screen.dart';
 import '../../../core/widgets/medilink_logo_mark.dart';
+import '../../../core/widgets/doctor_page_background.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.auth});
@@ -262,6 +263,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           key: ValueKey('messages-$messagesRefresh'), doctor: doctor),
       AppointmentsScreen(key: ValueKey(appointmentRefresh), doctor: doctor),
     ];
+    final visiblePages = doctor
+        ? pages.map((page) => DoctorPageBackground(child: page)).toList()
+        : pages;
     final labels = doctor
         ? const ['Accueil', 'Besoins', 'Propositions', 'Messages', 'Agenda']
         : const ['Accueil', 'Médecins', 'Besoins', 'Messages', 'Rendez-vous'];
@@ -339,7 +343,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         ],
       ),
       body: _bodyWithStartupStatus(
-        IndexedStack(index: selected, children: pages),
+        IndexedStack(index: selected, children: visiblePages),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
