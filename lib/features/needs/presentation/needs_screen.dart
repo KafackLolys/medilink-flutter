@@ -173,7 +173,9 @@ class _NeedsScreenState extends State<NeedsScreen> {
         ? ['Tous', 'Routine', 'Urgent', 'Domicile', 'Téléconsultation']
         : ['Tous', 'En cours', 'Confirmées', 'Brouillons', 'Clôturées'];
 
-    return ListView(
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
           Text(widget.doctor ? 'Demandes de patients' : 'Mes besoins médicaux',
@@ -280,7 +282,8 @@ class _NeedsScreenState extends State<NeedsScreen> {
                             _loadNeeds(append: true);
                           },
                     child: const Text('Charger plus de demandes'))),
-        ]);
+        ]),
+    );
   }
 }
 
