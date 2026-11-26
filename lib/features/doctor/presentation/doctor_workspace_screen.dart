@@ -169,7 +169,9 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => RefreshIndicator(
+  Widget build(BuildContext context) => Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: RefreshIndicator(
       onRefresh: _load,
       child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
@@ -427,7 +429,9 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
                                 '${r['rating'] ?? ''}/5 · ${r['patientName'] ?? r['patient'] ?? 'Patient'}'),
                             subtitle: Text('${r['comment'] ?? ''}')))
                         .toList()),
-          ]));
+          ])));
+  }
+
   Widget _section(String title, IconData icon, List<Widget> children) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(

@@ -62,7 +62,9 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
         : proposals
             .where((row) => status.isEmpty || row['status'] == status)
             .toList();
-    return ListView(
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
         children: [
           Text('Mes propositions',
@@ -167,7 +169,7 @@ class _ProposalsScreenState extends State<ProposalsScreen> {
                             _load();
                           },
                     child: const Text('Charger plus'))),
-        ]);
+        ]));
   }
 
   Future<void> _cancel(Map<String, dynamic> row) async {
