@@ -257,10 +257,10 @@ class _DoctorWorkspaceScreenState extends State<DoctorWorkspaceScreen> {
               LayoutBuilder(builder: (context, constraints) {
                 final compact = constraints.maxWidth < 420;
                 final options = [
-                  ('home', 'À domicile', LineAwesomeIcons.home_solid),
+                  ('home', 'À domicile', Icons.home_outlined),
                   ('teleconsultation', 'Téléconsultation',
-                      LineAwesomeIcons.video_solid),
-                  ('both', 'Les deux', LineAwesomeIcons.check_circle_solid),
+                      Icons.videocam_outlined),
+                  ('both', 'Les deux', Icons.done_all),
                 ];
                 return Wrap(
                   spacing: 8,
