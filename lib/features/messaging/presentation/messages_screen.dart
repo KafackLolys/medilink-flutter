@@ -159,12 +159,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   leading: CircleAvatar(
-                      backgroundColor: AppTheme.primary.withOpacity(.1),
+                      backgroundColor: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary).withOpacity(.1),
                       child: Icon(
                           widget.doctor
                               ? LineAwesomeIcons.user_circle
                               : LineAwesomeIcons.stethoscope_solid,
-                          color: AppTheme.primary)),
+                          color: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary))),
                   title: Row(children: [
                     Expanded(
                         child: Text(name,
@@ -173,7 +173,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     if (unread > 0)
                       CircleAvatar(
                           radius: 11,
-                          backgroundColor: AppTheme.primary,
+                          backgroundColor: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary),
                           child: Text('$unread',
                               style: const TextStyle(
                                   color: Colors.white, fontSize: 11)))
@@ -470,7 +470,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 11),
                         decoration: BoxDecoration(
-                            color: mine ? AppTheme.primary : Colors.white,
+                            color: mine ? (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary) : Colors.white,
                             borderRadius: BorderRadius.circular(18).copyWith(
                                 bottomRight:
                                     mine ? const Radius.circular(4) : null,
