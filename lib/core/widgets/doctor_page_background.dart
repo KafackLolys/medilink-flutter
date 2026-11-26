@@ -9,6 +9,11 @@ class DoctorPageBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Theme(
         data: Theme.of(context).copyWith(
+          primaryColor: const Color(0xff2563eb),
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: const Color(0xff2563eb),
+            secondary: const Color(0xff2563eb),
+          ),
           scaffoldBackgroundColor: Colors.transparent,
           appBarTheme: Theme.of(context).appBarTheme.copyWith(
             backgroundColor: Colors.white,
