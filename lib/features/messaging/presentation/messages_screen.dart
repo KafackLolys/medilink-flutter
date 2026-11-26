@@ -229,8 +229,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final item = Map<String, dynamic>.from(raw);
     if (messages.any((m) => m['id']?.toString() == item['id']?.toString()))
       return;
+    // Reconcile retries as well as first sends. A server event is
+    // authoritative even if the HTTP response subsequently times out.
     final pendingIndex = messages.indexWhere((m) =>
-        m['deliveryStatus'] == 'sending' &&
+        (m['deliveryStatus'] == 'sending' || m['deliveryStatus'] == 'failed') &&
         m['senderId']?.toString() == currentUserId &&
         m['content']?.toString() == item['body']?.toString());
     setState(() {
@@ -428,19 +430,46 @@ class _ConversationScreenState extends State<ConversationScreen> {
       });
     } catch (exception) {
       if (!mounted) return;
-      final failedIndex = messages.indexWhere((message) =>
-          message['id']?.toString() == messageId);
-      if (failedIndex >= 0) {
-        setState(() {
-          messages[failedIndex] = {
-            ...messages[failedIndex],
-            'deliveryStatus': 'failed',
-          };
-        });
+      // The backend can persist and broadcast the message even when the
+      // request response is lost. Refresh only this conversation to reconcile.
+      var accepted = false;
+      try {
+        final response = await MedilinkApi.instance.get(
+            'messages/v2/conversations/${Uri.encodeComponent(widget.conversation['id'].toString())}');
+        final raw = response is Map ? response['items'] : null;
+        if (raw is List) {
+          final refreshed = raw.whereType<Map>().map((row) {
+            final item = Map<String, dynamic>.from(row);
+            return {
+              ...item,
+              'senderId': item['senderUserId'],
+              'content': item['body'],
+              'createdAt': item['sentAt'],
+            };
+          }).toList();
+          accepted = refreshed.any((message) =>
+              message['senderId']?.toString() == currentUserId &&
+              message['content']?.toString() == body);
+          if (accepted) setState(() => messages = refreshed);
+        }
+      } catch (_) {
+        // Preserve the retry error if reconciliation cannot reach the API.
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nouvel essai impossible : $exception')),
-      );
+      if (!accepted) {
+        final failedIndex = messages.indexWhere((message) =>
+            message['id']?.toString() == messageId);
+        if (failedIndex >= 0) {
+          setState(() {
+            messages[failedIndex] = {
+              ...messages[failedIndex],
+              'deliveryStatus': 'failed',
+            };
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nouvel essai impossible : $exception')),
+        );
+      }
     } finally {
       if (mounted) setState(() => sending = false);
     }
