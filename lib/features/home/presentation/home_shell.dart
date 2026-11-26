@@ -278,12 +278,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ];
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: doctor ? const Color(0xfff8fcff) : null,
+        surfaceTintColor: doctor ? Colors.transparent : null,
+        elevation: doctor ? 0 : null,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xffe7f2fb),
+                color: doctor ? const Color(0xffe5f7f5) : const Color(0xffe7f2fb),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const MedilinkLogoMark(size: 20),
@@ -346,6 +349,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         IndexedStack(index: selected, children: visiblePages),
       ),
       bottomNavigationBar: NavigationBar(
+        backgroundColor: doctor ? Colors.white : null,
+        indicatorColor: doctor ? const Color(0xffdff5f0) : null,
         selectedIndex: selected,
         onDestinationSelected: (v) => setState(() {
           selected = v;
