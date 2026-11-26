@@ -339,13 +339,50 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               icon: const Icon(LineAwesomeIcons.user_circle_solid),
             ),
           if (doctor)
+            PopupMenuButton<String>(
+              tooltip: 'Compte médecin',
+              icon: const Icon(LineAwesomeIcons.user_circle_solid),
+              onSelected: (value) {
+                if (value == 'profile') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DoctorWorkspaceScreen(),
+                    ),
+                  );
+                } else if (value == 'logout') {
+                  _confirmDoctorSignOut();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_outline, color: Color(0xff2563eb)),
+                      SizedBox(width: 12),
+                      Text('Mon profil'),
+                    ],
+                  ),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Color(0xffdc2626)),
+                      SizedBox(width: 12),
+                      Text('Déconnexion'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          if (!doctor)
             IconButton(
-              tooltip: 'Profil et disponibilités',
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const DoctorWorkspaceScreen())),
-              icon: const Icon(LineAwesomeIcons.user_md_solid),
+              tooltip: 'Déconnexion',
+              onPressed: () => widget.auth.signOut(),
+              icon: const Icon(LineAwesomeIcons.sign_out_alt_solid),
             ),
           IconButton(
             tooltip: 'Notifications',
@@ -362,11 +399,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               isLabelVisible: NotificationsScreen.unreadCount > 0,
               child: const Icon(LineAwesomeIcons.bell_solid),
             ),
-          ),
-          IconButton(
-            tooltip: 'Déconnexion',
-            onPressed: () => widget.auth.signOut(),
-            icon: const Icon(LineAwesomeIcons.sign_out_alt_solid),
           ),
         ],
       ),
@@ -464,6 +496,35 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                   icon: Icon(Icons.person_outline), label: 'Mon profil')
             ]),
       );
+
+  Future<void> _confirmDoctorSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmer la déconnexion'),
+        content: const Text(
+          'Voulez-vous vraiment vous déconnecter de votre compte médecin ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xffdc2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Me déconnecter'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await widget.auth.signOut();
+    }
+  }
 
   Widget _bodyWithStartupStatus(Widget child) => Column(
         children: [
