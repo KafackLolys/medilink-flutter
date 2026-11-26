@@ -193,7 +193,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                   child: ListTile(
                     leading: CircleAvatar(
                         backgroundColor: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary).withOpacity(.1),
-                        child: const Icon(LineAwesomeIcons.calendar_check_solid,
+                        child: Icon(LineAwesomeIcons.calendar_check_solid,
                             color: (widget.doctor ? const Color(0xff2563eb) : AppTheme.primary))),
                     title: Text(title,
                         style: const TextStyle(fontWeight: FontWeight.w700)),
