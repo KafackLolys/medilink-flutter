@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:line_awesome_flutter/line_awesome_flutter.dart';
 
@@ -267,6 +268,61 @@ class _LoginState extends State<LoginScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
+                                if (!kIsWeb) ...[
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      const Expanded(child: Divider(color: Color(0xffe2e8f0))),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        child: Text(
+                                          'OU',
+                                          style: TextStyle(
+                                            color: Color(0xff94a3b8),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1,
+                                          ),
+                                        ),
+                                      ),
+                                      const Expanded(child: Divider(color: Color(0xffe2e8f0))),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    height: 52,
+                                    child: OutlinedButton(
+                                      onPressed: widget.auth.busy || !widget.auth.usesApi
+                                          ? null
+                                          : _signInWithGoogle,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: const Color(0xff172554),
+                                        side: const BorderSide(color: Color(0xffdbe3ef)),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(15),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const _GoogleLogoIcon(),
+                                          const SizedBox(width: 11),
+                                          Text(
+                                            registering
+                                                ? 'Continuer avec Google'
+                                                : 'Se connecter avec Google',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+  
+                                ],
+                                const SizedBox(height: 8),
                                 TextButton(
                                   onPressed: () => setState(() => registering = !registering),
                                   child: Text(registering ? 'Déjà inscrit ? Se connecter' : 'Nouveau sur MediLink ? Créer un compte',

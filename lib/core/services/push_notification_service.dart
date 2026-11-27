@@ -512,6 +512,23 @@ class PushNotificationService extends ChangeNotifier {
   /// Appelé après restauration ou ouverture d'une session MediLink.
   Future<void> registerAuthenticatedDevice() async {
     if (!MedilinkApi.instance.isAuthenticated) return;
+
+    // Récupère à nouveau le token au moment où la session est disponible.
+    // Cela évite de dépendre d'un token qui aurait été indisponible au premier
+    // démarrage (cas possible sur une installation Release fraîche).
+    try {
+      final currentToken = await _messaging.getToken(
+        vapidKey: kIsWeb && webVapidKey.isNotEmpty ? webVapidKey : null,
+      );
+      if (currentToken != null && currentToken.isNotEmpty) {
+        token = currentToken;
+      }
+    } catch (exception) {
+      error = 'Récupération du token FCM impossible : $exception';
+      notifyListeners();
+      return;
+    }
+
     await _registerToken();
   }
 

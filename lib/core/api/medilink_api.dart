@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_environment.dart';
@@ -21,6 +22,7 @@ class MedilinkApi {
   String? _idToken;
   String? _refreshToken;
   String? _userId;
+  Map<String, dynamic>? _session;
   void Function()? onSessionExpired;
 
   bool get isConfigured => _apiBaseUrl.trim().isNotEmpty;
@@ -34,6 +36,7 @@ class MedilinkApi {
   }
 
   void _applySession(Map<String, dynamic> session) {
+    _session = Map<String, dynamic>.from(session);
     _idToken = session['idToken']?.toString();
     _refreshToken = session['refreshToken']?.toString();
     final user = session['user'];
@@ -80,6 +83,7 @@ class MedilinkApi {
     _idToken = null;
     _refreshToken = null;
     _userId = null;
+    _session = null;
     try {
       await _secureStorage.delete(key: _sessionStorageKey);
     } catch (_) {
@@ -205,16 +209,35 @@ class MedilinkApi {
       if (response.statusCode == 401 &&
           authenticated &&
           retryOnUnauthorized &&
-          _refreshToken?.isNotEmpty == true &&
-          path != 'auth/v2/refresh') {
+          path != 'auth/v2/refresh' &&
+          (_refreshToken?.isNotEmpty == true ||
+              FirebaseAuth.instance.currentUser != null)) {
         try {
-          final refreshed = _asMap(await _send(
-            'POST',
-            'auth/v2/refresh',
-            body: {'refreshToken': _refreshToken},
-            authenticated: false,
-            retryOnUnauthorized: false,
-          ));
+          late final Map<String, dynamic> refreshed;
+          if (_refreshToken?.isNotEmpty == true) {
+            // Connexion classique e-mail/mot de passe : refresh token REST.
+            refreshed = _asMap(await _send(
+              'POST',
+              'auth/v2/refresh',
+              body: {'refreshToken': _refreshToken},
+              authenticated: false,
+              retryOnUnauthorized: false,
+            ));
+          } else {
+            // Connexion Google : Firebase Auth renouvelle le token lui-même.
+            final firebaseUser = FirebaseAuth.instance.currentUser;
+            final freshIdToken = await firebaseUser?.getIdToken(true);
+            if (freshIdToken == null || freshIdToken.isEmpty) {
+              throw const MedilinkApiException(
+                'Impossible de renouveler la session Google.',
+                statusCode: 401,
+              );
+            }
+            refreshed = {
+              ...?_session,
+              'idToken': freshIdToken,
+            };
+          }
           await setSession(refreshed);
           return await _send(
             method,
@@ -223,6 +246,13 @@ class MedilinkApi {
             body: body,
             authenticated: authenticated,
             retryOnUnauthorized: false,
+          );
+        } on FirebaseAuthException {
+          await clearSession();
+          onSessionExpired?.call();
+          throw const MedilinkApiException(
+            'Session Google expirée. Veuillez vous reconnecter.',
+            statusCode: 401,
           );
         } on MedilinkApiException catch (exception) {
           if (![400, 401, 403].contains(exception.statusCode)) rethrow;
