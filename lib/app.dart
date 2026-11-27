@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/auth/presentation/login_screen.dart';
+import 'features/auth/presentation/connection_unavailable_screen.dart';
 import 'features/home/presentation/home_shell.dart';
 import 'core/widgets/medilink_logo_mark.dart';
 import 'core/widgets/notification_permission_gate.dart';
@@ -24,9 +25,14 @@ class MediLinkApp extends StatelessWidget {
         home: NotificationPermissionGate(
           child: auth.initializing
               ? const _SessionLoadingScreen()
-              : auth.signedIn
-                  ? HomeShell(auth: auth)
-                  : LoginScreen(auth: auth),
+              : auth.connectionUnavailable
+                  ? ConnectionUnavailableScreen(
+                      loading: auth.checkingBackend,
+                      onRetry: auth.retryStartupConnection,
+                    )
+                  : auth.signedIn
+                      ? HomeShell(auth: auth)
+                      : LoginScreen(auth: auth),
         ),
       ),
     );

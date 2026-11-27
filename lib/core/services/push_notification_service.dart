@@ -105,14 +105,27 @@ Future<void> _showRemoteNotification(
   RemoteMessage message,
   FlutterLocalNotificationsPlugin plugin,
 ) async {
-  final data = Map<String, dynamic>.from(message.data);
+  final rawData = Map<String, dynamic>.from(message.data);
+  // Novu peut encapsuler les métadonnées dans "data" (objet ou JSON).
+  // Aplatir ce niveau permet de conserver le type métier qui choisit l'icône.
+  final nestedRaw = rawData['data'];
+  final nestedData = nestedRaw is Map
+      ? Map<String, dynamic>.from(nestedRaw)
+      : nestedRaw is String
+          ? _decodeNotificationPayload(nestedRaw)
+          : <String, dynamic>{};
+  final data = <String, dynamic>{...nestedData, ...rawData};
   final title = message.notification?.title ??
       data['title']?.toString() ??
       'Notification MediLink';
   final body = message.notification?.body ?? data['body']?.toString() ?? '';
   final conversationId = data['conversationId']?.toString();
-  final notificationIcon = _notificationIconForType(data['type']);
-  final isChat = data['type']?.toString() == 'new_message' &&
+  final notificationType = data['type'] ??
+      data['notificationType'] ??
+      data['eventType'] ??
+      data['notification_type'];
+  final notificationIcon = _notificationIconForType(notificationType);
+  final isChat = notificationType?.toString().toLowerCase().replaceAll('-', '_') == 'new_message' &&
       conversationId != null &&
       conversationId.isNotEmpty;
 
@@ -120,6 +133,7 @@ Future<void> _showRemoteNotification(
     ...data,
     'title': title,
     'body': body,
+    if (notificationType != null) 'type': notificationType.toString(),
   };
   final rawNotificationId = data['notificationId']?.toString();
   final notificationId = isChat
