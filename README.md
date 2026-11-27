@@ -28,9 +28,9 @@ Copy-Item .env.example.json .env.json
 $env:RELEASE_STORE_PASSWORD = "mot-de-passe-du-keystore"
 $env:RELEASE_KEY_PASSWORD = "mot-de-passe-de-la-cle"
 $env:RELEASE_KEY_ALIAS = "medilink-release"
-$env:RELEASE_KEYSTORE_PATH = "C:\\chemin\\vers\\release-key.jks"
+$env:RELEASE_KEYSTORE_PATH = "C:\chemin\vers\release-key.jks"
 
-.\\build_release.ps1
+.\build_release.ps1
 ```
 
 Le script vérifie la présence de `.env.json`, de l'URL API, du client OAuth, du fichier Firebase Android et du keystore, puis passe explicitement `--dart-define-from-file=.env.json` à la compilation Release. Les mots de passe doivent être définis dans la session PowerShell et ne doivent jamais être ajoutés au dépôt.
@@ -38,7 +38,7 @@ Le script vérifie la présence de `.env.json`, de l'URL API, du client OAuth, d
 Pour vérifier les empreintes de la clé qui signe l'APK (Google Sign-In) :
 
 ```powershell
-keytool -list -v -keystore "C:\\chemin\\vers\\release-key.jks" -alias medilink-release
+keytool -list -v -keystore "C:\chemin\vers\release-key.jks" -alias medilink-release
 ```
 
 Enregistrez le SHA-1 et le SHA-256 de cette clé dans les paramètres de l'application Android Firebase/Google Cloud (`com.lolys.medilink`), puis téléchargez le `google-services.json` actualisé. Si l'APK est distribuée par Google Play avec Play App Signing, ajoutez également les empreintes du certificat de signature Play. Les empreintes de signature concernent notamment Google Sign-In ; la livraison FCM dépend aussi de l'enregistrement du token de l'APK auprès du backend et de l'intégration FCM configurée dans Novu.
