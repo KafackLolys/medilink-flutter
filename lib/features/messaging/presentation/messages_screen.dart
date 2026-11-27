@@ -102,26 +102,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         hasApiResponse = true;
       }
     } finally {
-      if (mounted) {
-        setState(() => loading = false);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          final target = _lastReadMessageIndex >= 0
-              ? _lastReadMessageKey.currentContext
-              : null;
-          if (target != null) {
-            Scrollable.ensureVisible(
-              target,
-              alignment: 0.5,
-              duration: const Duration(milliseconds: 220),
-            );
-          } else if (_scrollController.hasClients) {
-            _scrollController.jumpTo(
-              _scrollController.position.maxScrollExtent,
-            );
-          }
-        });
-      }
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -369,7 +350,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
     } catch (exception) {
       apiError = exception.toString();
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final target = _lastReadMessageIndex >= 0
+              ? _lastReadMessageKey.currentContext
+              : null;
+          if (target != null) {
+            Scrollable.ensureVisible(
+              target,
+              alignment: 0.5,
+              duration: const Duration(milliseconds: 220),
+            );
+          } else if (_scrollController.hasClients) {
+            _scrollController.jumpTo(
+              _scrollController.position.maxScrollExtent,
+            );
+          }
+        });
+      }
     }
   }
 
