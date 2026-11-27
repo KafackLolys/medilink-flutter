@@ -33,6 +33,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 
   if (defaultTargetPlatform != TargetPlatform.android) return;
+  // Android already displays FCM notification-payload messages in the tray.
+  // Rendering them again locally creates two identical notifications.
+  // Data-only messages continue through the category-specific local icons.
+  if (message.notification != null) return;
 
   final local = FlutterLocalNotificationsPlugin();
   await _initializeLocalNotifications(
@@ -116,10 +120,15 @@ Future<void> _showRemoteNotification(
     'title': title,
     'body': body,
   };
+  final rawNotificationId = data['notificationId']?.toString();
   final notificationId = isChat
       ? _stableNotificationId('conversation:$conversationId')
-      : (message.messageId?.hashCode ??
-          DateTime.now().millisecondsSinceEpoch ~/ 1000);
+      : _stableNotificationId(
+          rawNotificationId != null && rawNotificationId.isNotEmpty
+              ? rawNotificationId
+              : (message.messageId ??
+                  'notification:${DateTime.now().millisecondsSinceEpoch ~/ 1000}'),
+        );
 
   final actions = isChat
       ? <AndroidNotificationAction>[
