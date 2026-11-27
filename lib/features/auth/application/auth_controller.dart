@@ -283,7 +283,11 @@ class AuthController extends ChangeNotifier {
     } catch (exception) {
       // Évite de laisser une session Firebase active si l'API MediLink
       // n'a pas pu terminer l'authentification.
-      await FirebaseAuth.instance.signOut();
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {
+        // L'erreur d'authentification initiale reste prioritaire.
+      }
       error = exception is PlatformException &&
               exception.code == 'sign_in_failed' &&
               exception.toString().contains('ApiException: 10')
@@ -326,8 +330,12 @@ class AuthController extends ChangeNotifier {
       // Clear the local session even if revocation cannot reach the API.
     }
     _session = null;
-    await FirebaseAuth.instance.signOut();
-    await GoogleSignIn().signOut();
+    try {
+      await FirebaseAuth.instance.signOut();
+      await GoogleSignIn().signOut();
+    } catch (_) {
+      // La session locale MediLink est déjà supprimée.
+    }
     startupError = null;
     error = null;
     LiveState.clearSession();
