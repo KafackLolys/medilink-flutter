@@ -2,6 +2,24 @@ $ErrorActionPreference = 'Stop'
 
 Set-Location $PSScriptRoot
 
+# ── Charger les credentials de signature depuis .env s'il existe ─────────────
+# (.env est ignoré par Git, voir .gitignore. Les valeurs proviennent de .env.data / release-key.jks)
+$envFilePath = Join-Path $PSScriptRoot '.env'
+if (Test-Path $envFilePath) {
+  Get-Content $envFilePath | ForEach-Object {
+    $line = $_.Trim()
+    if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) { return }
+    if ($line -match '^([^=]+)=(.*)$') {
+      $name  = $matches[1].Trim()
+      $value = $matches[2].Trim()
+      # Ne pas écraser une variable d'environnement déjà définie explicitement
+      $current = [Environment]::GetEnvironmentVariable($name)
+      if (-not [string]::IsNullOrWhiteSpace($current)) { continue }
+      [Environment]::SetEnvironmentVariable($name, $value)
+    }
+  }
+}
+
 $flutter = Get-Command flutter -ErrorAction Stop
 $envFile = Join-Path $PSScriptRoot '.env.json'
 if (-not (Test-Path $envFile)) {
