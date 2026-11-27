@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "353233115193-akia6egp40vt3fc2hleiuc9p762bt0l8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lolys.medilink",
+            "certificate_hash": "49f2be82d9f8c6bea51be5b3082c25c3ad9083e0"
+          }
+        },
+        {
           "client_id": "353233115193-dfseqo09qnkcm8cpkcqgs94tvctrk0a6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

@@ -20,13 +20,16 @@ if (Test-Path $envFilePath) {
   }
 }
 
+Write-Host "[DEBUG] build_release.ps1 démarré depuis $PSScriptRoot" -ForegroundColor Cyan
 $flutter = Get-Command flutter -ErrorAction Stop
+Write-Host "[DEBUG] flutter trouvé : $($flutter.Source)" -ForegroundColor Cyan
 $envFile = Join-Path $PSScriptRoot '.env.json'
 if (-not (Test-Path $envFile)) {
   throw "Fichier .env.json absent. Créez-le depuis .env.example.json et renseignez API_BASE_URL."
 }
 
 $config = Get-Content -Raw $envFile | ConvertFrom-Json
+Write-Host "[DEBUG] .env.json lu, API_BASE_URL = $($config.API_BASE_URL)" -ForegroundColor Cyan
 if ([string]::IsNullOrWhiteSpace([string]$config.API_BASE_URL)) {
   throw "API_BASE_URL est vide dans .env.json : l'APK ne pourra pas enregistrer son token FCM auprès de MediLink/Novu."
 }
@@ -70,9 +73,12 @@ if ($apiUri.Host -in @('localhost', '127.0.0.1', '10.0.2.2')) {
 
 & $flutter.Source pub get
 if ($LASTEXITCODE -ne 0) { throw 'flutter pub get a échoué.' }
+Write-Host "[DEBUG] flutter pub get terminé" -ForegroundColor Cyan
 
+Write-Host "[DEBUG] lancement de flutter build apk --release ..." -ForegroundColor Cyan
 & $flutter.Source build apk --release --dart-define-from-file=.env.json
 if ($LASTEXITCODE -ne 0) { throw 'La compilation de l’APK Release a échoué.' }
+Write-Host "[DEBUG] flutter build apk terminé" -ForegroundColor Cyan
 
 $apk = Join-Path $PSScriptRoot 'build\app\outputs\flutter-apk\app-release.apk'
 if (-not (Test-Path $apk)) {
