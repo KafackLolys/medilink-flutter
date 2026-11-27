@@ -308,9 +308,7 @@ class _LoginState extends State<LoginScreen> {
                                           const _GoogleLogoIcon(),
                                           const SizedBox(width: 11),
                                           Text(
-                                            registering
-                                                ? 'Continuer avec Google'
-                                                : 'Se connecter avec Google',
+                                            'Continuer avec Google',
                                             style: const TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w700,
