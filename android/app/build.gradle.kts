@@ -32,18 +32,37 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseStorePassword = providers.environmentVariable("RELEASE_STORE_PASSWORD").orNull
+    val releaseKeyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").orNull
+    val releaseKeyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS")
+        .orElse("medilink-release")
+        .get()
+    val releaseKeyStorePath = providers.environmentVariable("RELEASE_KEYSTORE_PATH").orNull
+
     signingConfigs {
-        create("release") {
-            storeFile = file("release-key.jks")
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "MedilinkRelease2026!"
-            keyAlias = "medilink-release"
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "MedilinkRelease2026!"
+        if (!releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = if (releaseKeyStorePath.isNullOrBlank()) {
+                    file("release-key.jks")
+                } else {
+                    file(releaseKeyStorePath)
+                }
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (!releaseStorePassword.isNullOrBlank() &&
+                !releaseKeyPassword.isNullOrBlank()
+            ) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }
