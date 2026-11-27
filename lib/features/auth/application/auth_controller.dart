@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -209,10 +210,34 @@ class AuthController extends ChangeNotifier {
         return;
       }
 
-      final authentication = await account.authentication;
-      final idToken = authentication.idToken;
-      if (idToken == null) {
-        throw const FormatException('Jetons d\'identité Google introuvable.');
+      final googleAuthentication = await account.authentication;
+      if (googleAuthentication.idToken == null) {
+        throw const FormatException(
+          'Google n’a pas fourni de jeton d’identité. Vérifiez le client OAuth Web.',
+        );
+      }
+
+      // Le backend vérifie un Firebase ID token (provider google.com), pas
+      // le jeton OAuth Google brut. Échange donc le credential Google contre
+      // une session Firebase avant d'appeler les routes MediLink.
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuthentication.idToken,
+        accessToken: googleAuthentication.accessToken,
+      );
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) {
+        throw const FormatException(
+          'Firebase n’a pas retourné de compte utilisateur.',
+        );
+      }
+      final firebaseIdToken = await firebaseUser.getIdToken(true);
+      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+        throw const FormatException(
+          'Impossible de récupérer le jeton Firebase.',
+        );
       }
 
       if (!MedilinkApi.instance.isConfigured) {
@@ -221,17 +246,51 @@ class AuthController extends ChangeNotifier {
         );
       }
 
-      // Complète la connexion ou l’inscription Google via l’API v2.
-      final session = await MedilinkApi.instance.googleComplete(idToken, role);
+      // Le backend attend un Firebase ID token et sépare les comptes
+      // existants des nouvelles inscriptions Google.
+      final status = await MedilinkApi.instance.googleStatus(firebaseIdToken);
+      Map<String, dynamic> sessionUser;
+      if (status['registered'] == true && status['user'] is Map) {
+        sessionUser = Map<String, dynamic>.from(status['user'] as Map);
+      } else {
+        final completed = await MedilinkApi.instance.googleComplete(
+          firebaseIdToken,
+          role,
+        );
+        final user = completed['user'];
+        if (user is! Map) {
+          throw const MedilinkApiException(
+            'La réponse du serveur ne contient pas de profil MediLink valide.',
+          );
+        }
+        sessionUser = Map<String, dynamic>.from(user);
+      }
+
+      if (sessionUser['id'] == null) {
+        throw const MedilinkApiException(
+          'Le profil MediLink ne contient aucun identifiant utilisateur.',
+        );
+      }
+      final session = <String, dynamic>{
+        'user': sessionUser,
+        'idToken': firebaseIdToken,
+        'tokenType': 'Bearer',
+      };
       _session = session;
       await MedilinkApi.instance.setSession(session);
       await PushNotificationService.instance.registerAuthenticatedDevice();
+      startupError = null;
     } catch (exception) {
+      // Évite de laisser une session Firebase active si l'API MediLink
+      // n'a pas pu terminer l'authentification.
+      await FirebaseAuth.instance.signOut();
       error = exception is PlatformException &&
               exception.code == 'sign_in_failed' &&
               exception.toString().contains('ApiException: 10')
-          ? 'Google refuse cette application (code 10). Dans Firebase/Google Cloud, enregistrez le package Android com.lolys.medilink avec le SHA-1 du certificat de signature de cette build, puis remplacez android/app/google-services.json par le fichier téléchargé.'
-          : exception.toString();
+          ? 'Google refuse cette application (code 10). Vérifiez le package com.lolys.medilink et le SHA-1 du certificat de cette APK dans Firebase/Google Cloud, puis téléchargez le google-services.json actualisé.'
+          : exception is FirebaseAuthException
+              ? 'Authentification Firebase impossible : ${exception.message ?? exception.code}'
+              : exception.toString();
     } finally {
       busy = false;
     }
@@ -267,6 +326,8 @@ class AuthController extends ChangeNotifier {
       // Clear the local session even if revocation cannot reach the API.
     }
     _session = null;
+    await FirebaseAuth.instance.signOut();
+    await GoogleSignIn().signOut();
     startupError = null;
     error = null;
     LiveState.clearSession();
