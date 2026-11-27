@@ -18,7 +18,7 @@ void main() {
     );
 
     expect(find.text('Connexion indisponible'), findsOneWidget);
-    expect(find.text('Vérifiez votre connexion Internet ou réessayez dans quelques instants.'), findsNothing);
+    expect(find.textContaining('Vérifiez votre connexion Internet'), findsOneWidget);
     expect(find.text('Réessayer'), findsOneWidget);
     expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
 
