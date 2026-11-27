@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui' show Color;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -171,6 +172,7 @@ Future<void> _showRemoteNotification(
         importance: Importance.high,
         priority: Priority.high,
         icon: notificationIcon,
+        color: const Color(0xff2563eb),
         category: isChat ? AndroidNotificationCategory.message : null,
         visibility: NotificationVisibility.private,
         onlyAlertOnce: true,
