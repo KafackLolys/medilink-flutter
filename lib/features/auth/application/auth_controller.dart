@@ -17,6 +17,7 @@ class AuthController extends ChangeNotifier {
   bool busy = false;
   bool initializing = true;
   bool checkingBackend = false;
+  bool connectionUnavailable = false;
   String? error;
   String? startupError;
   Map<String, dynamic>? get user => _session?['user'] as Map<String, dynamic>?;
@@ -29,14 +30,53 @@ class AuthController extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       final restored = await MedilinkApi.instance.restoreSession();
-      if (restored == null) return;
-      _session = restored;
-      await retryBackendConnection(notify: false);
-      await PushNotificationService.instance.registerAuthenticatedDevice();
+      if (restored != null) _session = restored;
+
+      final online = await MedilinkApi.instance.checkConnection();
+      if (!online) {
+        connectionUnavailable = true;
+        return;
+      }
+
+      if (_session != null) {
+        await retryBackendConnection(notify: false);
+        if (startupError != null && _session != null) {
+          connectionUnavailable = true;
+          return;
+        }
+        await PushNotificationService.instance.registerAuthenticatedDevice();
+      }
     } catch (_) {
-      _session = null;
+      connectionUnavailable = true;
     } finally {
       initializing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> retryStartupConnection() async {
+    if (checkingBackend) return;
+    checkingBackend = true;
+    notifyListeners();
+    try {
+      final online = await MedilinkApi.instance.checkConnection();
+      if (!online) {
+        connectionUnavailable = true;
+        return;
+      }
+
+      connectionUnavailable = false;
+      startupError = null;
+      if (_session != null) {
+        await retryBackendConnection(notify: false);
+        if (startupError != null && _session != null) {
+          connectionUnavailable = true;
+          return;
+        }
+        await PushNotificationService.instance.registerAuthenticatedDevice();
+      }
+    } finally {
+      checkingBackend = false;
       notifyListeners();
     }
   }
@@ -132,6 +172,7 @@ class AuthController extends ChangeNotifier {
       await MedilinkApi.instance.setSession(_session!);
       await PushNotificationService.instance.registerAuthenticatedDevice();
       startupError = null;
+      connectionUnavailable = false;
     } catch (exception) {
       _session = null;
       await MedilinkApi.instance.logout();
