@@ -17,6 +17,7 @@ class MediLinkApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: auth,
       builder: (context, _) => MaterialApp(
+        key: ValueKey<String>(auth.initializing ? 'initializing' : auth.signedIn ? 'authenticated' : 'anonymous'),
         title: 'MediLink',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
