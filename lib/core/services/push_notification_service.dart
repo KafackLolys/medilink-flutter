@@ -77,17 +77,26 @@ int _stableNotificationId(String value) {
 }
 
 String _notificationIconForType(dynamic rawType) {
-  final type = (rawType?.toString() ?? '').toLowerCase().replaceAll('-', '_');
-  if (type.contains('message') || type.contains('chat')) {
+  // Les événements MediLink peuvent arriver sous forme de slug, enum ou
+  // libellé. Normaliser tous les séparateurs avant de classifier.
+  final type = (rawType?.toString() ?? '')
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_');
+
+  if (type.contains('message') || type.contains('chat') ||
+      type.contains('conversation')) {
     return 'ic_stat_message';
   }
-  if (type.contains('proposal') || type.contains('offer')) {
+  if (type.contains('proposal') || type.contains('offer') ||
+      type.contains('proposition')) {
     return 'ic_stat_proposal';
   }
-  if (type.contains('appointment') ||
-      type.contains('rendez_vous') ||
+  if (type.contains('appointment') || type.contains('rendez_vous') ||
       type.contains('rendezvous')) {
-    if (type.contains('cancel') || type.contains('reject')) {
+    if (type.contains('cancel') || type.contains('reject') ||
+        type.contains('annul')) {
       return 'ic_stat_appointment_cancelled';
     }
     return 'ic_stat_appointment';
@@ -106,14 +115,20 @@ Future<void> _showRemoteNotification(
   FlutterLocalNotificationsPlugin plugin,
 ) async {
   final rawData = Map<String, dynamic>.from(message.data);
-  // Novu peut encapsuler les métadonnées dans "data" (objet ou JSON).
-  // Aplatir ce niveau permet de conserver le type métier qui choisit l'icône.
-  final nestedRaw = rawData['data'];
-  final nestedData = nestedRaw is Map
-      ? Map<String, dynamic>.from(nestedRaw)
-      : nestedRaw is String
-          ? _decodeNotificationPayload(nestedRaw)
-          : <String, dynamic>{};
+
+  // Novu/FCM peuvent transporter les métadonnées dans data, payload ou
+  // metadata, sous forme d'objet ou de JSON sérialisé. Fusionner les niveaux
+  // internes d'abord, puis les champs racine (qui restent prioritaires).
+  final nestedData = <String, dynamic>{};
+  for (final key in const ['metadata', 'payload', 'data']) {
+    final nestedRaw = rawData[key];
+    final decoded = nestedRaw is Map
+        ? Map<String, dynamic>.from(nestedRaw)
+        : nestedRaw is String
+            ? _decodeNotificationPayload(nestedRaw)
+            : <String, dynamic>{};
+    nestedData.addAll(decoded);
+  }
   final data = <String, dynamic>{...nestedData, ...rawData};
   final title = message.notification?.title ??
       data['title']?.toString() ??
@@ -122,9 +137,30 @@ Future<void> _showRemoteNotification(
   final conversationId = data['conversationId']?.toString();
   final notificationType = data['type'] ??
       data['notificationType'] ??
+      data['notification_type'] ??
       data['eventType'] ??
-      data['notification_type'];
+      data['event_type'] ??
+      data['category'] ??
+      data['event'];
   final notificationIcon = _notificationIconForType(notificationType);
+
+  // Ne jamais confondre l'icône générique par défaut avec une icône métier :
+  // ces traces permettent d'identifier un payload Novu incomplet en production
+  // sans journaliser le texte potentiellement privé de la notification.
+  debugPrint(
+    '[FCM] Notification rendering: '
+    'messageId=${message.messageId}, '
+    'hasNotificationPayload=${message.notification != null}, '
+    'dataKeys=${data.keys.toList()..sort()}, '
+    'resolvedType=${notificationType ?? '<missing>'}, '
+    'icon=$notificationIcon',
+  );
+  if (notificationIcon == 'ic_stat_medilink') {
+    debugPrint(
+      '[FCM] Category icon fallback: no recognized notification type '
+      'was found in the Novu/FCM payload.',
+    );
+  }
   final isChat = notificationType?.toString().toLowerCase().replaceAll('-', '_') == 'new_message' &&
       conversationId != null &&
       conversationId.isNotEmpty;
