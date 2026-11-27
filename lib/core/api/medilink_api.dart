@@ -687,7 +687,7 @@ class MedilinkApi {
       // Android must receive data-only FCM messages so Flutter can create
       // the local notification with its category-specific small icon.
       // Novu remains available for web subscribers.
-      'pushProvider': 'firebase',
+      'pushProvider': 'novu',
     };
     if (userAgent != null) data['userAgent'] = userAgent;
     return _asMap(await post('notifications/v2/devices', data));
