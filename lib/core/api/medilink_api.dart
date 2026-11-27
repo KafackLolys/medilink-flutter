@@ -91,6 +91,18 @@ class MedilinkApi {
     }
   }
 
+  /// Vérifie la disponibilité réelle de l'API avant d'afficher l'écran de connexion.
+  /// La route racine est publique et ne dépend pas d'une session utilisateur.
+  Future<bool> checkConnection() async {
+    if (!isConfigured) return false;
+    try {
+      await _send('GET', '', authenticated: false);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> login(String email, String password) async =>
       _asMap(await post(
           'auth/v2/login',
