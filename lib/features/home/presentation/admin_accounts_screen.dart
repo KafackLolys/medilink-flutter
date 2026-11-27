@@ -7,7 +7,6 @@ const _blue = Color(0xFF2563EB);
 const _ink = Color(0xFF172554);
 const _muted = Color(0xFF64748B);
 const _border = Color(0xFFE5EAF3);
-const _canvas = Color(0xFFF5F7FC);
 
 class AdminAccountsScreen extends StatefulWidget {
   const AdminAccountsScreen({super.key, required this.auth});

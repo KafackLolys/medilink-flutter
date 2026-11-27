@@ -224,6 +224,9 @@ class ConversationScreen extends StatefulWidget {
 
 class _ConversationScreenState extends State<ConversationScreen> {
   final controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _lastReadMessageKey = GlobalKey();
+  int _lastReadMessageIndex = -1;
   late List<Map<String, dynamic>> messages;
   String? apiError;
   bool loading = false;
@@ -340,11 +343,33 @@ class _ConversationScreenState extends State<ConversationScreen> {
         }
       }
       messages = loaded;
+      _lastReadMessageIndex = loaded.lastIndexWhere((message) =>
+          message['senderId']?.toString() != currentUserId &&
+          message['readAt'] != null);
       apiError = null;
     } catch (exception) {
       apiError = exception.toString();
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final target = _lastReadMessageIndex >= 0
+              ? _lastReadMessageKey.currentContext
+              : null;
+          if (target != null) {
+            Scrollable.ensureVisible(
+              target,
+              alignment: 0.5,
+              duration: const Duration(milliseconds: 220),
+            );
+          } else if (_scrollController.hasClients) {
+            _scrollController.jumpTo(
+              _scrollController.position.maxScrollExtent,
+            );
+          }
+        });
+      }
     }
   }
 
@@ -355,6 +380,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     socket?.off('message:read', _onSocketRead);
     messagingSocket.leaveConversation(widget.conversation['id'].toString());
     controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -519,12 +545,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
               child: Text('Chargement des messages impossible : $apiError')),
         Expanded(
             child: ListView.builder(
+                controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 itemCount: messages.length,
                 itemBuilder: (context, index) {
                   final message = messages[index];
                   final mine = message['senderId'] == currentUserId;
                   return Align(
+                      key: index == _lastReadMessageIndex
+                          ? _lastReadMessageKey
+                          : null,
                       alignment:
                           mine ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
